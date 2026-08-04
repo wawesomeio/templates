@@ -1,0 +1,215 @@
+name: templates
+
+# The two-sided contract: this repository tests every template against the
+# *published* CLI, so a user cloning or scaffolding today gets something that
+# works. (The monorepo separately tests these same templates against its
+# unreleased CLI, which catches contract breaks before they ship.)
+#
+# A commit only advances a template's stable tag after that template has been
+# deployed to the real platform and driven end to end. Until then the tag keeps
+# pointing at the last commit that passed, so `main` is never load-bearing for
+# anyone's first deploy.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: templates-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # GitHub's implicit shell is `bash -e` *without* pipefail, which would let a
+    # failed `curl` feed its empty output into `jq` and carry on.
+    shell: bash
+
+jobs:
+  # Adding a template means adding a directory — never editing this workflow.
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.find.outputs.templates }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: find
+        run: |
+          templates=$(find . -mindepth 2 -maxdepth 2 -name template.json -printf '%h\n' \
+            | sed 's|^\./||' | sort | jq -R . | jq -sc .)
+          if [ "$templates" = "[]" ]; then
+            echo "::error::No templates found. A template is a directory containing template.json."
+            exit 1
+          fi
+          echo "Found templates: $templates"
+          echo "templates=$templates" >> "$GITHUB_OUTPUT"
+
+  manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run validate
+
+  verify:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJson(needs.discover.outputs.templates) }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ matrix.template }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ matrix.template }}/.nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.template }}/package-lock.json
+      # `npm ci` rather than `npm install`: a visitor who clones this repository
+      # gets exactly these dependencies, so CI must install exactly them too.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build the deployable bundle
+        run: npx wawesome build
+      - name: Check no provider SDK reached the bundle
+        run: |
+          bytes=$(wc -c < dist/index.js)
+          echo "Bundle: $bytes bytes"
+          if [ "$bytes" -gt 65536 ]; then
+            echo "::error::Bundle is $bytes bytes. Provider SDKs are imported type-only so the bundler erases them — a bundle this size means one is being pulled in at runtime, which will not survive the WASM runtime either."
+            exit 1
+          fi
+
+  smoke-deploy:
+    needs: [discover, manifests, verify]
+    # Two reasons this may not run. Forks cannot reach the deployment secrets and
+    # a pull request must not deploy anyway; and until a gateway exists to deploy
+    # *to*, there is nothing to smoke-test against.
+    #
+    # Skipping is safe precisely because the tag advance lives inside this job:
+    # no smoke deploy means no tag moves, so a template can never be published
+    # on the strength of a type-check alone. Setting the WAWESOME_GATEWAY_URL
+    # repository variable is what switches this on.
+    if: github.event_name != 'pull_request' && vars.WAWESOME_GATEWAY_URL != ''
+    runs-on: ubuntu-latest
+    environment: smoke
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJson(needs.discover.outputs.templates) }}
+    env:
+      GATEWAY_URL: ${{ vars.WAWESOME_GATEWAY_URL }}
+      TENANT_JWT: ${{ secrets.WAWESOME_TENANT_JWT }}
+      TENANT_ID: ${{ secrets.WAWESOME_TENANT_ID }}
+      TEMPLATE: ${{ matrix.template }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ${{ matrix.template }}/.nvmrc
+
+      - name: Check the deployment credentials are present
+        run: |
+          # A gateway is configured, so half-configured credentials are a
+          # mistake rather than a "not yet" — fail loudly.
+          missing=""
+          [ -n "$TENANT_JWT" ] || missing="$missing WAWESOME_TENANT_JWT(secret)"
+          [ -n "$TENANT_ID" ] || missing="$missing WAWESOME_TENANT_ID(secret)"
+          if [ -n "$missing" ]; then
+            echo "::error::WAWESOME_GATEWAY_URL is set but these are not:$missing — see README.md, 'Repository CI'."
+            exit 1
+          fi
+          # Tenant JWTs are short-lived (30 minutes at the time of writing), so a
+          # token pasted into a repository secret is expired long before CI reads
+          # it. This must become a mint-on-demand step, not a stored token.
+          echo "::warning::Using a stored tenant JWT. These expire in ~30 minutes; if this job fails with 401, that is why."
+
+      - name: Authenticate the CLI
+        run: |
+          mkdir -p "$HOME/.wawesome"
+          jq -n \
+            --arg gateway_url "$GATEWAY_URL" \
+            --arg tenant_jwt "$TENANT_JWT" \
+            --arg tenant_id "$TENANT_ID" \
+            '{gateway_url: $gateway_url, tenant_jwt: $tenant_jwt, tenant_id: $tenant_id, user_email: "ci@wawesome.io"}' \
+            > "$HOME/.wawesome/credentials.json"
+
+      # Deliberately `wawesome@latest`, not the version in the template's
+      # lockfile: the promise being tested is that the CLI a user installs
+      # *today* can deploy this template.
+      - name: Deploy with the published CLI
+        working-directory: ${{ matrix.template }}
+        run: |
+          set +e
+          output=$(npx --yes wawesome@latest deploy --verbose 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            # Code versions are immutable, so a commit that changes only a README
+            # or a manifest rebuilds a byte-identical bundle and the upload is
+            # refused. That is not a template defect — the deployed version
+            # already *is* this commit's code — so the smoke test proceeds and
+            # still has to pass before the tag moves.
+            if grep -qi "already exists" <<<"$output"; then
+              echo "::notice::Bundle unchanged since the last deploy; smoke-testing the live version."
+            else
+              exit "$status"
+            fi
+          fi
+
+      - name: Resolve the invocation URL
+        id: url
+        run: |
+          slug=$(curl -sSf -H "Authorization: Bearer $TENANT_JWT" "$GATEWAY_URL/v1/tenant" | jq -r '.tenant_slug')
+          if [ -z "$slug" ] || [ "$slug" = "null" ]; then
+            echo "::error::Could not read the workspace slug from $GATEWAY_URL/v1/tenant."
+            exit 1
+          fi
+          app=$(jq -r '.app' "$TEMPLATE/wawesome-function.json")
+          fn=$(jq -r '.function' "$TEMPLATE/wawesome-function.json")
+          echo "url=$GATEWAY_URL/v1/s/$slug/apps/$app/functions/$fn/invoke" >> "$GITHUB_OUTPUT"
+
+      - name: Drive the deployed Function
+        # Through the environment rather than interpolated into the script: the
+        # URL is built from an API response, and `${{ }}` pasted into a shell
+        # command is how that turns into command execution.
+        env:
+          INVOKE_URL: ${{ steps.url.outputs.url }}
+        run: node ".github/smoke/$TEMPLATE.mjs" "$INVOKE_URL"
+
+      # The indirection that keeps template fixes off both release cadences: the
+      # catalogue names this tag once and never changes again, and rolling a bad
+      # template back is moving one ref — no gateway deploy, no CLI release.
+      #
+      # It lives in this job, not a later one, so each template's tag turns on
+      # its own smoke test. A broken template must not freeze anyone else's.
+      - name: Advance the stable tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          # Flat, never slashed: git cannot hold both a ref named for a template
+          # and refs nested beneath that name, and a slash is rewritten as a
+          # hyphen inside the fetched archive's root directory. The manifest
+          # schema enforces this too; here it guards the push itself.
+          ref=$(jq -r '.ref' "$TEMPLATE/template.json")
+          case "$ref" in */*|""|null) echo "::error::ref '$ref' must be a flat tag."; exit 1;; esac
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f "$ref" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$ref"
+          echo "Stable ref '$ref' now points at $GITHUB_SHA"

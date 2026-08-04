@@ -1,0 +1,14 @@
+{
+  "name": "wawesome-templates",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repository tooling for the wawesome.io template catalogue. Not part of any template.",
+  "license": "MIT",
+  "scripts": {
+    "validate": "node scripts/validate-templates.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.17.1"
+  }
+}

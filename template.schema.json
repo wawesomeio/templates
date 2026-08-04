@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wawesomeio/templates/template.schema.json",
+  "title": "wawesome template manifest",
+  "description": "A requirements declaration: what a template is, what it needs before it can run, and what the user should do once it is deployed. It declares; the CLI satisfies each requirement through an endpoint the platform already ships.",
+  "type": "object",
+  "required": ["name", "title", "description", "tags", "ref", "env", "providers", "post_deploy"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": {
+      "description": "The template's identity: what a user types after `--template`, and the directory it lives in inside the repository archive. One name, so there is nothing to disagree with itself.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": {
+      "description": "Human-readable name for the gallery and the CLI list.",
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "description": "One sentence a visitor can decide on within a few seconds.",
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "ref": {
+      "description": "The stable git ref the CLI fetches. A flat tag, never a slashed name: git cannot hold both a ref named for a template and refs nested beneath it, and a slash is rewritten as a hyphen inside the fetched archive's root directory. CI advances this tag only after the template smoke-deploys against the published CLI.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "env": {
+      "description": "The environment variables to prompt for, each with a pointer to where its value is found.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "required", "secret", "description", "where_to_find"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "required": {
+            "description": "Whether the Function is non-functional without it.",
+            "type": "boolean"
+          },
+          "secret": {
+            "description": "Stored write-only, never readable back. Anything credential-shaped is secret.",
+            "type": "boolean"
+          },
+          "description": { "type": "string", "minLength": 1 },
+          "where_to_find": {
+            "description": "Where in the third-party's own dashboard the value is, so the user does not have to search their documentation.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "providers": {
+      "description": "Outbound providers from the platform's egress catalogue that the template calls. Empty for an inbound-only template.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+    },
+    "post_deploy": {
+      "description": "Printed after a successful deploy. `{{url}}` is interpolated with the Function's public URL — the only placeholder anywhere in the template system, and it never touches a source file.",
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

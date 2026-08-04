@@ -1,0 +1,19 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "stripe-webhook",
+  "title": "Stripe Webhook Receiver",
+  "description": "A Stripe webhook endpoint with signature verification already wired, so you are not implementing security-critical code from a blog post.",
+  "tags": ["stripe", "webhook", "payments", "typescript"],
+  "ref": "stripe-webhook",
+  "env": [
+    {
+      "key": "STRIPE_WEBHOOK_SECRET",
+      "required": true,
+      "secret": true,
+      "description": "Signing secret for this webhook endpoint. Every request is rejected unless it carries a signature made with it.",
+      "where_to_find": "Stripe Dashboard → Developers → Webhooks → your endpoint → \"Signing secret\" → Reveal. It starts with whsec_. The secret only exists once the endpoint does, so if you have not created it yet, leave this blank and set it after the deploy prints your URL."
+    }
+  ],
+  "providers": [],
+  "post_deploy": "Your webhook endpoint is live at {{url}}\n\nTo finish:\n  1. Stripe Dashboard → Developers → Webhooks → Add endpoint, and paste that URL.\n  2. Choose the events to send. The handler already covers checkout.session.completed,\n     payment_intent.succeeded, payment_intent.payment_failed and customer.subscription.deleted.\n  3. Copy the endpoint's signing secret and store it:\n       wawesome env set STRIPE_WEBHOOK_SECRET whsec_... --secret\n  4. Send a test event from the dashboard, then watch it arrive:\n       wawesome logs --follow"
+}

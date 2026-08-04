@@ -1,0 +1,5 @@
+{
+  "app": "stripe-webhook",
+  "function": "stripe-events",
+  "entry": "src/index.ts"
+}
