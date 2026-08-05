@@ -25,11 +25,19 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-A one-command path — `wawesome init --template stripe-webhook`, which fetches the
-template, asks only what it genuinely needs, and deploys — is being built. It will
-end in exactly the same place as the clone above, because there is nothing to
-substitute: it patches two fields, the package name and the App and Function names
-in `wawesome-function.json`, and copies every other file byte for byte.
+Or take the one-command path, which needs no git at all:
+
+```bash
+mkdir acme-store && cd acme-store
+npx wawesome init --template stripe-webhook
+```
+
+It fetches the template over plain HTTP, asks only what it genuinely needs —
+which App, what to call the Function, and the values the manifest declares — then
+stores those, enables any outbound providers, and deploys. It ends in exactly the
+same place as the clone above, because there is nothing to substitute: it patches
+two fields, the package name and the App and Function names in
+`wawesome-function.json`, and copies every other file byte for byte.
 
 ## How a template is put together
 
@@ -66,8 +74,10 @@ actually provides.
 Each template has a **stable ref** — a flat tag named after the template, e.g.
 `stripe-webhook`. That is what the CLI fetches, and what the catalogue points at.
 
-CI advances a template's tag only after that exact commit has been deployed to
-the real platform with the **published** CLI and driven end to end. So:
+Once a gateway exists, CI advances a template's tag only after that exact commit
+has been deployed to the real platform with the **published** CLI and driven end
+to end. Until then it advances on the offline checks alone — see
+[Repository CI](#repository-ci). Either way:
 
 - One bad commit on `main` cannot break scaffolding for new users.
 - Rolling a template back is moving one ref — instant, no gateway deploy, no CLI
@@ -126,11 +136,16 @@ is set, alongside these in the `smoke` environment:
 | `WAWESOME_TENANT_JWT` | secret | Token for the CI workspace |
 | `WAWESOME_TENANT_ID` | secret | That workspace's id |
 
-Skipping is safe because the tag advance lives *inside* the smoke-deploy job: no
-smoke deploy means no tag moves, so a template can never be published on the
-strength of a type-check alone. It also means **no stable tag exists yet**, which
-is fine — nothing can fetch a template before there is a gateway to deploy it to
-either.
+While it is dormant, a third job (`publish-unverified`) advances the stable tags
+off the offline checks instead, and every such run carries a warning saying what
+it was — and was not — verified against. This is deliberate for the scaffolding
+phase: `wawesome init --template` resolves a template to its tag and fetches
+that, so with no tag the whole path is unreachable rather than merely unverified.
+A template checked offline is more useful than one nobody can fetch.
+
+The two jobs are mutually exclusive by construction — `publish-unverified` runs
+only while `WAWESOME_GATEWAY_URL` is unset, and the smoke deploy only once it is
+— so setting that variable is the whole of the switch back.
 
 Two things to settle before that half goes live:
 

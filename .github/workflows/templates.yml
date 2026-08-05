@@ -5,10 +5,18 @@ name: templates
 # works. (The monorepo separately tests these same templates against its
 # unreleased CLI, which catches contract breaks before they ship.)
 #
-# A commit only advances a template's stable tag after that template has been
-# deployed to the real platform and driven end to end. Until then the tag keeps
-# pointing at the last commit that passed, so `main` is never load-bearing for
-# anyone's first deploy.
+# A template's stable tag only ever advances off checks that passed, so `main` is
+# never load-bearing for anyone's first deploy. What counts as "passed" depends on
+# whether there is a platform to run against, and exactly one of these two jobs
+# runs on any given push:
+#
+#   * `smoke-deploy` — with a gateway configured, the gate is a real deploy with
+#     the published CLI, driven end to end.
+#   * `publish-unverified` — with no gateway yet, the gate is the offline checks
+#     (manifests, type checks, tests, bundle), and the run says so.
+#
+# The second is a scaffolding-phase concession that reverts on its own: setting
+# WAWESOME_GATEWAY_URL swaps which job runs, with no edit here.
 
 on:
   push:
@@ -97,12 +105,11 @@ jobs:
     needs: [discover, manifests, verify]
     # Two reasons this may not run. Forks cannot reach the deployment secrets and
     # a pull request must not deploy anyway; and until a gateway exists to deploy
-    # *to*, there is nothing to smoke-test against.
+    # *to*, there is nothing to smoke-test against. Setting the
+    # WAWESOME_GATEWAY_URL repository variable is what switches this on.
     #
-    # Skipping is safe precisely because the tag advance lives inside this job:
-    # no smoke deploy means no tag moves, so a template can never be published
-    # on the strength of a type-check alone. Setting the WAWESOME_GATEWAY_URL
-    # repository variable is what switches this on.
+    # When it does run it is the gate, per template: a template that fails here
+    # does not get its tag advanced, and a broken one never freezes anyone else's.
     if: github.event_name != 'pull_request' && vars.WAWESOME_GATEWAY_URL != ''
     runs-on: ubuntu-latest
     environment: smoke
@@ -193,23 +200,44 @@ jobs:
           INVOKE_URL: ${{ steps.url.outputs.url }}
         run: node ".github/smoke/$TEMPLATE.mjs" "$INVOKE_URL"
 
-      # The indirection that keeps template fixes off both release cadences: the
-      # catalogue names this tag once and never changes again, and rolling a bad
-      # template back is moving one ref — no gateway deploy, no CLI release.
-      #
-      # It lives in this job, not a later one, so each template's tag turns on
-      # its own smoke test. A broken template must not freeze anyone else's.
+      # The tag advance lives in this job, not a later one, so each template's
+      # tag turns on its own smoke test. A broken template must not freeze
+      # anyone else's — a later job could only see the matrix's *aggregate*
+      # result, and would.
       - name: Advance the stable tag
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: scripts/advance-stable-tag.sh "$TEMPLATE"
+
+  # The scaffolding-phase concession: publish on the offline checks alone, while
+  # there is no gateway to smoke-deploy against.
+  #
+  # `wawesome init --template` resolves a template to its stable tag and fetches
+  # that. With no tag, the entire scaffolding path is unreachable — not merely
+  # unverified, but impossible to exercise at all — and a template verified
+  # offline is strictly more useful than one nobody can fetch. The trade is named
+  # in the run's log rather than left for someone to infer.
+  #
+  # Mutually exclusive with `smoke-deploy` by construction: the condition below
+  # is the exact negation of the one that job runs under, so a template is never
+  # published twice, and the moment WAWESOME_GATEWAY_URL is set this job stops
+  # running and the smoke deploy becomes the gate again, with no edit here.
+  publish-unverified:
+    needs: [discover, manifests, verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.WAWESOME_GATEWAY_URL == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        template: ${{ fromJson(needs.discover.outputs.templates) }}
+    env:
+      TEMPLATE: ${{ matrix.template }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Advance the stable tag, unverified against a live platform
         run: |
-          # Flat, never slashed: git cannot hold both a ref named for a template
-          # and refs nested beneath that name, and a slash is rewritten as a
-          # hyphen inside the fetched archive's root directory. The manifest
-          # schema enforces this too; here it guards the push itself.
-          ref=$(jq -r '.ref' "$TEMPLATE/template.json")
-          case "$ref" in */*|""|null) echo "::error::ref '$ref' must be a flat tag."; exit 1;; esac
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f "$ref" "$GITHUB_SHA"
-          git push -f origin "refs/tags/$ref"
-          echo "Stable ref '$ref' now points at $GITHUB_SHA"
+          echo "::warning::Advancing '$TEMPLATE' on the offline checks alone — no gateway is configured, so nothing was deployed or driven end to end. Set WAWESOME_GATEWAY_URL to make the smoke deploy the gate again."
+          scripts/advance-stable-tag.sh "$TEMPLATE"
