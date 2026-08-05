@@ -33,14 +33,40 @@ const OTHER_ORIGIN = "https://not-smoke.wawesome.test";
 // refusing to look at it. Minted per run, and worth nothing to anybody.
 const apiKey = `sk-smoke-${randomBytes(24).toString("hex")}`;
 
+/** Read a value out of the template's own source, or fail loudly. */
+function fromSource(path, pattern, what) {
+  const found = readFileSync(path, "utf-8").match(pattern)?.[1];
+  if (!found) {
+    console.error(`✗ Could not read ${what} from ${path}.`);
+    process.exit(1);
+  }
+  return found;
+}
+
 // Read out of the source rather than copied here, so this cannot keep asserting
 // a prompt the template stopped shipping.
-const promptSource = readFileSync("llm-proxy/src/system-prompt.ts", "utf-8");
-const promptOpening = promptSource.match(/SYSTEM_PROMPT = `([^\n`]+)/)?.[1];
-if (!promptOpening) {
-  console.error("✗ Could not read the opening line of SYSTEM_PROMPT from llm-proxy/src/system-prompt.ts.");
-  process.exit(1);
-}
+const promptOpening = fromSource(
+  "llm-proxy/src/system-prompt.ts",
+  /SYSTEM_PROMPT = `([^\n`]+)/,
+  "the opening line of SYSTEM_PROMPT",
+);
+
+/**
+ * The ceilings, derived rather than restated.
+ *
+ * A copy of these numbers here would keep passing after somebody raised a
+ * limit — the request would simply be under the new ceiling, and the test would
+ * report that a refusal it never triggered still works.
+ */
+const limit = (name) =>
+  Number(fromSource("llm-proxy/src/policy.ts", new RegExp(`${name}:\\s*([\\d_]+)`), name).replaceAll("_", ""));
+
+const LIMITS = {
+  maxMessages: limit("maxMessages"),
+  maxBodyChars: limit("maxBodyChars"),
+  maxPromptChars: limit("maxPromptChars"),
+};
+console.log(`→ ceilings read from policy.ts: ${JSON.stringify(LIMITS)}`);
 
 function configure(key, value, secret) {
   console.log(`→ setting ${key}`);
@@ -126,16 +152,29 @@ await expect(
 
 await expect(
   "too much conversation history is refused",
-  () => call({ body: chat(...Array.from({ length: 13 }, (_, i) => ({ role: i % 2 === 0 ? "user" : "assistant", content: "x" }))) }),
+  () =>
+    call({
+      body: chat(
+        ...Array.from({ length: LIMITS.maxMessages + 1 }, (_, i) => ({
+          role: i % 2 === 0 ? "user" : "assistant",
+          content: "x",
+        })),
+      ),
+    }),
   413,
   "Too many messages",
 );
 
-await expect("too much prompt text is refused", () => call({ body: chat(user("x".repeat(9000))) }), 413, "too long");
+await expect(
+  "too much prompt text is refused",
+  () => call({ body: chat(user("x".repeat(LIMITS.maxPromptChars + 1))) }),
+  413,
+  "too long",
+);
 
 await expect(
   "an oversized body is refused",
-  () => call({ body: chat(user("x".repeat(30000))) }),
+  () => call({ body: chat(user("x".repeat(LIMITS.maxBodyChars + 1))) }),
   413,
   "too large",
 );

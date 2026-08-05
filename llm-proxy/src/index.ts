@@ -27,6 +27,13 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 /** Bound on how much of a provider error is written to the logs. */
 const MAX_LOGGED_ERROR_CHARS = 500;
 
+/**
+ * Answer with no CORS headers at all — the only honest response to an origin
+ * that was refused. Handing it `Access-Control-Allow-Origin` would be granting
+ * the access the refusal just denied.
+ */
+const WITHOUT_CORS = null;
+
 export default {
   async fetch(request: Request): Promise<Response> {
     const allowed = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
@@ -35,7 +42,7 @@ export default {
     // Decided before the method, so a preflight from an origin you did not
     // authorise is refused at the same gate a real request would be.
     if (!origin.ok) {
-      return refuse(origin.refusal, null);
+      return refuse(origin.refusal, WITHOUT_CORS);
     }
 
     if (request.method === "OPTIONS") {
@@ -141,9 +148,10 @@ export default {
 /**
  * CORS headers for an answer.
  *
- * On every response including the refusals: without them a browser cannot read
- * the status or the body, and a 413 the frontend cannot see is indistinguishable
- * from the endpoint being down.
+ * On every response an admitted origin gets, including the refusals: without
+ * them a browser cannot read the status or the body, and a 413 the frontend
+ * cannot see is indistinguishable from the endpoint being down. A *refused*
+ * origin is the one exception — see [`WITHOUT_CORS`].
  */
 function corsHeaders(allowOrigin: string): Record<string, string> {
   return {

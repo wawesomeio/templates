@@ -57,16 +57,21 @@ const deny = (status: number, error: string): { ok: false; refusal: Refusal } =>
 });
 
 /**
- * Read `ALLOWED_ORIGINS` into the list to compare against.
- *
- * Normalised on the way in rather than at every comparison: an origin typed
- * into configuration by a human tends to carry a trailing slash and mixed case,
- * and a browser sends neither.
+ * The comparable form of an origin: an origin typed into configuration by a
+ * human tends to carry a trailing slash and mixed case, and a browser sends
+ * neither. Both sides of the comparison go through here, so the configured
+ * list and the incoming header cannot drift into disagreeing about what
+ * counts as the same origin.
  */
+function normaliseOrigin(origin: string): string {
+  return origin.trim().toLowerCase().replace(/\/+$/, "");
+}
+
+/** Read `ALLOWED_ORIGINS` into the list to compare against. */
 export function parseAllowedOrigins(raw: string | undefined): string[] {
   return (raw ?? "")
     .split(",")
-    .map((origin) => origin.trim().toLowerCase().replace(/\/+$/, ""))
+    .map(normaliseOrigin)
     .filter((origin) => origin.length > 0);
 }
 
@@ -87,7 +92,7 @@ export function parseAllowedOrigins(raw: string | undefined): string[] {
 export function checkOrigin(origin: string | null, allowed: string[]): OriginCheck {
   if (allowed.length === 0) return { ok: true, allowOrigin: "*" };
 
-  if (origin && allowed.includes(origin.toLowerCase().replace(/\/+$/, ""))) {
+  if (origin && allowed.includes(normaliseOrigin(origin))) {
     // Echoed exactly as received: CORS compares byte for byte, so answering
     // with a normalised form is answering with an origin that will not match.
     return { ok: true, allowOrigin: origin };

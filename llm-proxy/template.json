@@ -11,7 +11,7 @@
       "required": true,
       "secret": true,
       "description": "The key the proxy calls the provider with. Stored write-only — it is never readable back, never sent to a browser, and never appears in a response.",
-      "where_to_find": "OpenAI Platform → Dashboard → API keys → Create new secret key. It starts with sk-. For another OpenAI-compatible provider, use that provider's key and set OPENAI_BASE_URL after the deploy."
+      "where_to_find": "OpenAI Platform → Dashboard → API keys → Create new secret key. It starts with sk-. Another OpenAI-compatible provider works too, but scaffolding authorises api.openai.com and nothing else — you would set OPENAI_BASE_URL and add that provider's host to the App's outbound allowlist first, or the call comes back as unreachable."
     },
     {
       "key": "ALLOWED_ORIGINS",
