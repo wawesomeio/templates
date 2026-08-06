@@ -15,6 +15,6 @@
     "openai": "^7.4.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
-    "wawesome": "^0.0.8"
+    "wawesome": "^0.0.9"
   }
 }
