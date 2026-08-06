@@ -1,0 +1,26 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "llm-proxy",
+  "title": "LLM Proxy",
+  "description": "A server-side proxy for any OpenAI-compatible model, so your API key and your system prompt never reach the browser and every request has a cost ceiling.",
+  "tags": ["openai", "llm", "ai", "proxy", "api-key", "typescript"],
+  "ref": "llm-proxy",
+  "env": [
+    {
+      "key": "OPENAI_API_KEY",
+      "required": true,
+      "secret": true,
+      "description": "The key the proxy calls the provider with. Stored write-only — it is never readable back, never sent to a browser, and never appears in a response.",
+      "where_to_find": "OpenAI Platform → Dashboard → API keys → Create new secret key. It starts with sk-. Another OpenAI-compatible provider works too, but scaffolding authorises api.openai.com and nothing else — you would set OPENAI_BASE_URL and add that provider's host to the App's outbound allowlist first, or the call comes back as unreachable."
+    },
+    {
+      "key": "ALLOWED_ORIGINS",
+      "required": false,
+      "secret": false,
+      "description": "Comma-separated list of the websites allowed to call this endpoint from a browser, e.g. https://acme.com,https://www.acme.com. Leave blank to answer anything while you are developing, then set it before you go live.",
+      "where_to_find": "The origin your frontend is served from — scheme and host, no path. Whatever appears in your browser's address bar before the first single slash."
+    }
+  ],
+  "providers": ["openai"],
+  "post_deploy": "Your proxy is live at {{url}}\n\nCall it from your frontend:\n  fetch('{{url}}', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),\n  })\n\nThen:\n  1. Edit src/system-prompt.ts — the shipped prompt is a placeholder persona, yours is the point.\n  2. Lock the endpoint to your site:\n       wawesome env set ALLOWED_ORIGINS https://your-site.com\n  3. Watch what each request costs, in tokens, as it happens:\n       wawesome logs --follow\n  4. Shipped a bad prompt? Roll the Function back — no redeploy, no git revert."
+}

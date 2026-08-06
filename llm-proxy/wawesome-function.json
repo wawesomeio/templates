@@ -1,0 +1,5 @@
+{
+  "app": "llm-proxy",
+  "function": "chat",
+  "entry": "src/index.ts"
+}

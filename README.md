@@ -12,6 +12,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | Template | What it is |
 | --- | --- |
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
+| [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model, so the API key and the system prompt never reach the browser |
 
 ## Using a template
 
