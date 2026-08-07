@@ -1,0 +1,5 @@
+{
+  "app": "rest-api",
+  "function": "customers",
+  "entry": "src/index.ts"
+}

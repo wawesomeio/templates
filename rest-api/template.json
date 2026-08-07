@@ -1,0 +1,11 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "rest-api",
+  "title": "REST API",
+  "description": "A collection, its items and a nested collection, served across several HTTP methods by a single Function — routing on the path, at one version, rolled back as one unit.",
+  "tags": ["rest", "api", "routing", "crud", "http", "typescript"],
+  "ref": "rest-api",
+  "env": [],
+  "providers": [],
+  "post_deploy": "Your API is live at {{url}}\n\nEvery path beneath that address reaches this one Function, which routes it itself:\n  curl {{url}}\n  curl {{url}}/cus_amelia\n  curl {{url}}/cus_amelia/orders\n  curl -X POST {{url}} -H 'Content-Type: application/json' -d '{\"name\":\"Nadia Petrova\",\"email\":\"nadia@example.com\"}'\n  curl {{url}}/nothing-here     # the Function's own 404\n\nThen:\n  1. Open src/store.ts — it serves fixture data and its writes are no-ops. That\n     is the one file to replace with your database; the routes above do not change.\n  2. Add or rename a route in the table at the top of src/index.ts.\n  3. Watch requests land as they happen:\n       wawesome logs --follow\n  4. Shipped a bad route? Roll the Function back — the whole resource moves\n     together, because it is one Function at one version."
+}

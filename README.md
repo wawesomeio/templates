@@ -13,6 +13,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | --- | --- |
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model, so the API key and the system prompt never reach the browser |
+| [`rest-api`](rest-api) | A collection, its items and a nested collection, served across several HTTP methods by one Function |
 
 ## Using a template
 
