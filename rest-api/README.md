@@ -153,8 +153,8 @@ No new deploy unit, no second Function, no route registered with the platform.
 The `Allow` header, the `405`, and the `OPTIONS` response all follow from the
 table automatically.
 
-If you would rather use a router you already know — `itty-router`, or anything
-else that takes a `Request` and returns a `Response` — it works here unmodified.
+If you would rather use a router you already know — like **[Hono](https://hono.dev/)** or `itty-router`, or anything
+else that takes a `Request` and returns a `Response` — it works here unmodified and is fully supported by the platform.
 Nothing about this Function's shape requires the one in `router.ts`; it is here
 because it is readable, not because it is required.
 
