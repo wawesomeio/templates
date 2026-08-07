@@ -61,7 +61,7 @@ export default {
         const allow = allowHeader(match.allow);
         return request.method === "OPTIONS"
           ? new Response(null, { status: 204, headers: { Allow: allow } })
-          : problem(405, `This path does not serve ${describe(request.method)}.`, { Allow: allow });
+          : problem(405, `This path does not serve ${safeMethodName(request.method)}.`, { Allow: allow });
       }
 
       case "undecodable":
@@ -104,7 +104,7 @@ async function create(request: Request): Promise<Response> {
 async function read(request: Request, { id }: Params): Promise<Response> {
   const customer = await findCustomer(id);
 
-  return customer ? Response.json(withSelf(request, customer)) : problem(404, "No such customer.");
+  return customer ? Response.json(withSelf(request, customer)) : noSuchCustomer();
 }
 
 async function replace(request: Request, { id }: Params): Promise<Response> {
@@ -113,20 +113,20 @@ async function replace(request: Request, { id }: Params): Promise<Response> {
 
   const replaced = await replaceCustomer(id, draft.value);
 
-  return replaced ? Response.json(withSelf(request, replaced)) : problem(404, "No such customer.");
+  return replaced ? Response.json(withSelf(request, replaced)) : noSuchCustomer();
 }
 
 async function remove(_request: Request, { id }: Params): Promise<Response> {
   const deleted = await deleteCustomer(id);
 
-  return deleted ? new Response(null, { status: 204 }) : problem(404, "No such customer.");
+  return deleted ? new Response(null, { status: 204 }) : noSuchCustomer();
 }
 
 async function orders(request: Request, { id }: Params): Promise<Response> {
   // Checked rather than answered with an empty list: "this customer has no
   // orders" and "there is no such customer" are different answers, and a client
   // cannot tell them apart from `[]`.
-  if (!(await findCustomer(id))) return problem(404, "No such customer.");
+  if (!(await findCustomer(id))) return noSuchCustomer();
 
   const found = await listOrders(id);
 
@@ -154,12 +154,16 @@ function allowHeader(allow: readonly string[]): string {
   return [...methods].sort().join(", ");
 }
 
+function noSuchCustomer(): Response {
+  return problem(404, "No such customer.");
+}
+
 function problem(status: number, error: string, headers: Record<string, string> = {}): Response {
   return Response.json({ error }, { status, headers });
 }
 
-/** A method name safe to put in a response body, whatever the caller sent. */
-function describe(method: string): string {
+/** Whatever the caller sent, reduced to something safe to echo in a body. */
+function safeMethodName(method: string): string {
   return /^[A-Za-z]{1,20}$/.test(method) ? method.toUpperCase() : "that method";
 }
 

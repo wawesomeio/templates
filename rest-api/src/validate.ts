@@ -55,10 +55,10 @@ export function parseCustomerDraft(contentType: string | null, raw: string): Par
 
   const { name, email } = parsed as { name?: unknown; email?: unknown };
 
-  const checkedName = text(name, "name", LIMITS.maxNameChars);
+  const checkedName = boundedText(name, "name", LIMITS.maxNameChars);
   if (!checkedName.ok) return checkedName;
 
-  const checkedEmail = text(email, "email", LIMITS.maxEmailChars);
+  const checkedEmail = boundedText(email, "email", LIMITS.maxEmailChars);
   if (!checkedEmail.ok) return checkedEmail;
 
   // Deliberately the weakest check that is still true: an address either has a
@@ -71,7 +71,7 @@ export function parseCustomerDraft(contentType: string | null, raw: string): Par
   return { ok: true, value: { name: checkedName.value, email: checkedEmail.value } };
 }
 
-function text(value: unknown, field: string, limit: number): Parsed<string> {
+function boundedText(value: unknown, field: string, limit: number): Parsed<string> {
   if (typeof value !== "string") {
     return deny(400, `'${field}' must be a string.`);
   }

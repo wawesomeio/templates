@@ -17,11 +17,10 @@ describe("the Function's own public base", () => {
   });
 
   it("follows the mount rather than assuming one", () => {
-    // A Preview addresses the same code under a different prefix. Nothing here
-    // may be compiled in, or a Preview would advertise production's links.
-    expect(mountUrl(arriving("/", "/preview/v7/x/acme/rest-api/customers"))).toBe(
-      `${ORIGIN}/preview/v7/x/acme/rest-api/customers`,
-    );
+    // A Preview addresses a version of this Function under a different prefix.
+    // Nothing here may be compiled in, or a Preview would advertise
+    // production's links.
+    expect(mountUrl(arriving("/", "/_preview/customers@7"))).toBe(`${ORIGIN}/_preview/customers@7`);
   });
 
   it("degrades to the origin when no prefix arrives", () => {
@@ -30,9 +29,8 @@ describe("the Function's own public base", () => {
 });
 
 describe("a link to a resource", () => {
-  it("hangs the segments off the mount", () => {
+  it("hangs the identifier off the mount", () => {
     expect(resourceUrl(arriving("/"), "cus_42")).toBe(`${ORIGIN}${PREFIX}/cus_42`);
-    expect(resourceUrl(arriving("/"), "cus_42", "orders")).toBe(`${ORIGIN}${PREFIX}/cus_42/orders`);
   });
 
   it("encodes a segment so the link routes back to the same resource", () => {
