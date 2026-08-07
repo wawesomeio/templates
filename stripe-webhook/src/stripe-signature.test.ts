@@ -1,30 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TOLERANCE_SECONDS, verifyStripeSignature } from "./stripe-signature.js";
+import { stripeSignature, stripeSignatureHeader } from "./stripe-signature.fixture.js";
 
 const SECRET = "whsec_ZmFrZV90ZXN0X3NpZ25pbmdfc2VjcmV0";
 const PAYLOAD = JSON.stringify({ id: "evt_test", type: "payment_intent.succeeded" });
 const TIMESTAMP = 1_700_000_000;
 
-/**
- * Signs the way Stripe does, so the tests exercise the real scheme rather than
- * the verifier's own idea of it.
- */
-async function stripeSignature(payload: string, timestamp: number, secret = SECRET): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${timestamp}.${payload}`));
-  return Array.from(new Uint8Array(mac))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
+function signatureFor(payload = PAYLOAD, timestamp = TIMESTAMP, secret = SECRET): Promise<string> {
+  return stripeSignature(payload, timestamp, secret);
 }
 
-async function headerFor(payload = PAYLOAD, timestamp = TIMESTAMP, secret = SECRET): Promise<string> {
-  return `t=${timestamp},v1=${await stripeSignature(payload, timestamp, secret)}`;
+function headerFor(payload = PAYLOAD, timestamp = TIMESTAMP, secret = SECRET): Promise<string> {
+  return stripeSignatureHeader(payload, timestamp, secret);
 }
 
 function verify(header: string | null, overrides: { payload?: string; nowSeconds?: number } = {}) {
@@ -42,7 +29,7 @@ describe("verifyStripeSignature", () => {
   });
 
   it("accepts the signature anywhere in the header, alongside the schemes it does not know", async () => {
-    const signature = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const signature = await signatureFor();
     const header = `t=${TIMESTAMP},v0=0000000000000000000000000000000000000000000000000000000000000000,v1=${signature}`;
 
     await expect(verify(header)).resolves.toEqual({ ok: true });
@@ -52,7 +39,7 @@ describe("verifyStripeSignature", () => {
     // Stripe sends one v1 per active secret during a rollover, and only the one
     // for *our* secret will match.
     const other = "0".repeat(64);
-    const mine = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const mine = await signatureFor();
 
     await expect(verify(`t=${TIMESTAMP},v1=${other},v1=${mine}`)).resolves.toEqual({ ok: true });
     await expect(verify(`t=${TIMESTAMP},v1=${mine},v1=${other}`)).resolves.toEqual({ ok: true });
@@ -78,7 +65,7 @@ describe("verifyStripeSignature", () => {
   it("rejects a signature bound to a different timestamp than the header claims", async () => {
     // The timestamp is part of the signed payload, so re-labelling a captured
     // request to look recent invalidates it — this is what stops a replay.
-    const signature = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const signature = await signatureFor();
 
     await expect(verify(`t=${TIMESTAMP + 1},v1=${signature}`, { nowSeconds: TIMESTAMP + 1 })).resolves.toMatchObject({
       ok: false,
@@ -139,7 +126,7 @@ describe("verifyStripeSignature", () => {
     // Matches stripe-node, which also lets a later `t` win. Harmless either way:
     // the timestamp is inside the signed message, so a value the signature was
     // not made with cannot verify.
-    const signature = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const signature = await signatureFor();
 
     await expect(verify(`t=${TIMESTAMP - 9999},t=${TIMESTAMP},v1=${signature}`)).resolves.toEqual({ ok: true });
   });
@@ -147,7 +134,7 @@ describe("verifyStripeSignature", () => {
   it("does not silently repair a header padded with spaces", async () => {
     // Stripe never sends one, and quietly trimming would mean accepting input
     // that did not come from Stripe in the shape Stripe sends it.
-    const signature = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const signature = await signatureFor();
 
     await expect(verify(`t=${TIMESTAMP}, v1=${signature}`)).resolves.toMatchObject({
       ok: false,
@@ -156,7 +143,7 @@ describe("verifyStripeSignature", () => {
   });
 
   it("rejects a truncated signature without throwing on the length mismatch", async () => {
-    const signature = await stripeSignature(PAYLOAD, TIMESTAMP);
+    const signature = await signatureFor();
 
     await expect(verify(`t=${TIMESTAMP},v1=${signature.slice(0, 32)}`)).resolves.toMatchObject({
       ok: false,

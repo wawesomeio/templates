@@ -6,14 +6,14 @@
  * between a commit and the stable tag: if a signed event does not come back 200,
  * or a forged one does, the tag does not move.
  *
- * Usage: node .github/smoke/stripe-webhook.mjs <invoke-url>
+ * Usage: node .github/smoke/stripe-webhook.mjs <public-address>
  */
 import { createHmac, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
-const invokeUrl = process.argv[2];
-if (!invokeUrl) {
-  console.error("Usage: node .github/smoke/stripe-webhook.mjs <invoke-url>");
+const address = process.argv[2];
+if (!address) {
+  console.error("Usage: node .github/smoke/stripe-webhook.mjs <public-address>");
   process.exit(1);
 }
 
@@ -27,6 +27,20 @@ const event = {
   data: { object: { id: "pi_smoke", amount_received: 4200, currency: "eur" } },
 };
 const payload = JSON.stringify(event);
+
+// Stripe pretty-prints its event bodies, and the HMAC is over those bytes. A hop
+// that parsed the JSON and re-serialised it would hand the Function a payload
+// differing only in whitespace and escaping — enough for every signature to stop
+// matching.
+const verbatimPayload = `{
+  "id": "evt_smoke_verbatim",
+  "type": "payment_intent.succeeded",
+  "note": "\\u00fc \\u2028 \\ud83d\\ude00",
+  "data": {
+    "object": { "id": "pi_smoke", "amount_received": 4200, "currency": "eur" }
+  }
+}
+`;
 
 console.log("→ storing the signing secret on the App");
 execFileSync("npx", ["--yes", "wawesome@latest", "env", "set", "STRIPE_WEBHOOK_SECRET", signingSecret, "--secret"], {
@@ -42,7 +56,7 @@ function signatureHeader(body, timestamp, secret = signingSecret) {
 }
 
 async function post(body, header, method = "POST") {
-  const response = await fetch(invokeUrl, {
+  const response = await fetch(address, {
     method,
     headers: {
       "Content-Type": "application/json",
@@ -65,6 +79,13 @@ async function expect(name, run, status, bodyIncludes) {
 await expect(
   "a genuinely signed event is accepted",
   () => post(payload, signatureHeader(payload, now())),
+  200,
+  '"received":true',
+);
+
+await expect(
+  "an event whose bytes only verify verbatim is accepted",
+  () => post(verbatimPayload, signatureHeader(verbatimPayload, now())),
   200,
   '"received":true',
 );
