@@ -180,7 +180,7 @@ jobs:
             fi
           fi
 
-      - name: Resolve the invocation URL
+      - name: Resolve the Function's public address
         id: url
         run: |
           slug=$(curl -sSf -H "Authorization: Bearer $TENANT_JWT" "$GATEWAY_URL/v1/tenant" | jq -r '.tenant_slug')
@@ -190,15 +190,15 @@ jobs:
           fi
           app=$(jq -r '.app' "$TEMPLATE/wawesome-function.json")
           fn=$(jq -r '.function' "$TEMPLATE/wawesome-function.json")
-          echo "url=$GATEWAY_URL/v1/s/$slug/apps/$app/functions/$fn/invoke" >> "$GITHUB_OUTPUT"
+          echo "url=$GATEWAY_URL/x/$slug/$app/$fn" >> "$GITHUB_OUTPUT"
 
       - name: Drive the deployed Function
         # Through the environment rather than interpolated into the script: the
-        # URL is built from an API response, and `${{ }}` pasted into a shell
+        # address is built from an API response, and `${{ }}` pasted into a shell
         # command is how that turns into command execution.
         env:
-          INVOKE_URL: ${{ steps.url.outputs.url }}
-        run: node ".github/smoke/$TEMPLATE.mjs" "$INVOKE_URL"
+          PUBLIC_ADDRESS: ${{ steps.url.outputs.url }}
+        run: node ".github/smoke/$TEMPLATE.mjs" "$PUBLIC_ADDRESS"
 
       # The tag advance lives in this job, not a later one, so each template's
       # tag turns on its own smoke test. A broken template must not freeze

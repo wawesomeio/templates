@@ -9,9 +9,11 @@ you. Verifying Stripe's signature is what makes the difference — and it is the
 part people most often copy from a blog post and get subtly wrong.
 
 This template gets it right, and proves it: [`src/stripe-signature.ts`](src/stripe-signature.ts)
-is short enough to read in full before you trust it, and
+is short enough to read in full before you trust it,
 [`src/stripe-signature.test.ts`](src/stripe-signature.test.ts) covers replay,
-tampering, secret rotation, malformed headers and truncated signatures.
+tampering, secret rotation, malformed headers and truncated signatures, and
+[`src/index.test.ts`](src/index.test.ts) drives the endpoint itself with
+signatures made the way Stripe makes them.
 
 ## What it does
 
@@ -38,7 +40,7 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-`deploy` prints your endpoint's public URL. Paste it into
+`deploy` prints your endpoint's public address. Paste it into
 **Stripe Dashboard → Developers → Webhooks → Add endpoint**, copy the signing
 secret it gives you back, and store it:
 
@@ -55,6 +57,31 @@ Then send a test event from the Stripe dashboard and watch it land:
 npx wawesome logs --follow
 ```
 
+## The address Stripe posts to
+
+```
+https://api.wawesome.io/x/<workspace>/stripe-webhook/stripe-events
+                        │      │             │             │
+                        │      │             │             └─ Function slug
+                        │      │             └─ App slug
+                        │      └─ your workspace slug
+                        └─ reserved for invocation, never a management route
+```
+
+The App and Function slugs come from [`wawesome-function.json`](wawesome-function.json),
+so renaming either renames the address. Do that before the URL reaches Stripe's
+dashboard, since afterwards a rename is an endpoint Stripe can no longer deliver
+to.
+
+The address is a mount rather than a single route: every path beneath it reaches
+this Function too, which sees the path with the mount stripped off. Stripe posts
+to the address itself, so `handleEvent` runs for a request the Function sees as
+`POST /`.
+
+Requests arrive as they were sent: the method, every header including
+`Stripe-Signature`, and the body byte for byte. That last one is what makes
+verification possible at all, since Stripe signs the bytes rather than the JSON.
+
 ## Configuration
 
 | Variable | Required | Where to find it |
@@ -65,8 +92,7 @@ Without it the endpoint answers `500` rather than accepting unverified requests 
 an unconfigured webhook fails closed.
 
 [`wawesome-function.json`](wawesome-function.json) names the App and Function this
-deploys to. The App slug is part of your public URL, so rename it to your project
-before the first deploy.
+deploys to, and both are segments of your public address — see above.
 
 ## Adding your own logic
 
