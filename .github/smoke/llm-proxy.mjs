@@ -14,15 +14,21 @@
  *
  * Everything else it checks is a refusal decided before any money is spent.
  *
- * Usage: node .github/smoke/llm-proxy.mjs <invoke-url>
+ * Every call also carries the CORS assertion a browser would make of it, since
+ * the template's whole promise is that a page can call this. The header the
+ * platform used to stamp onto every response is gone, so what arrives here is
+ * the Function's own policy and nothing else — including its refusals, which
+ * are only observable from out here as a *missing* header.
+ *
+ * Usage: node .github/smoke/llm-proxy.mjs <public-address>
  */
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 
-const invokeUrl = process.argv[2];
-if (!invokeUrl) {
-  console.error("Usage: node .github/smoke/llm-proxy.mjs <invoke-url>");
+const address = process.argv[2];
+if (!address) {
+  console.error("Usage: node .github/smoke/llm-proxy.mjs <public-address>");
   process.exit(1);
 }
 
@@ -82,18 +88,32 @@ configure("ALLOWED_ORIGINS", ALLOWED_ORIGIN, false);
 const chat = (...messages) => JSON.stringify({ messages });
 const user = (content) => ({ role: "user", content });
 
-async function call({ method = "POST", origin = ALLOWED_ORIGIN, body = chat(user("Where is my order?")) } = {}) {
-  const response = await fetch(invokeUrl, {
+async function call({
+  method = "POST",
+  origin = ALLOWED_ORIGIN,
+  body = chat(user("Where is my order?")),
+  path = "",
+} = {}) {
+  const response = await fetch(address + path, {
     method,
     headers: {
       "Content-Type": "application/json",
       ...(origin ? { Origin: origin } : {}),
+      // What makes an OPTIONS a *preflight* rather than a bare OPTIONS. Without
+      // them this would not be the request a browser actually sends first.
+      ...(method === "OPTIONS"
+        ? { "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" }
+        : {}),
     },
     body: method === "POST" ? body : undefined,
   });
   return {
     status: response.status,
     allowOrigin: response.headers.get("access-control-allow-origin"),
+    expectedAllowOrigin: origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : null,
+    allowMethods: response.headers.get("access-control-allow-methods"),
+    allowHeaders: response.headers.get("access-control-allow-headers"),
+    vary: response.headers.get("vary"),
     body: await response.text(),
   };
 }
@@ -104,24 +124,47 @@ const seenBodies = [];
 async function expect(name, run, status, bodyIncludes = "") {
   const result = await run();
   seenBodies.push(result.body);
-  const ok = result.status === status && result.body.includes(bodyIncludes);
-  console.log(`${ok ? "✓" : "✗"} ${name} — ${result.status} ${result.body}`);
-  if (!ok) {
+
+  const corsOk = result.allowOrigin === result.expectedAllowOrigin;
+  const ok = result.status === status && result.body.includes(bodyIncludes) && corsOk;
+  console.log(`${ok ? "✓" : "✗"} ${name} — ${result.status} [acao: ${result.allowOrigin}] ${result.body}`);
+
+  if (result.status !== status || !result.body.includes(bodyIncludes)) {
     failures.push(`${name}: expected ${status} containing "${bodyIncludes}", got ${result.status} ${result.body}`);
   }
+  // Ahead of the comparison below, which would otherwise catch a doubled header
+  // as a plain value mismatch and report the wrong diagnosis for it.
+  if (result.allowOrigin?.includes(",")) {
+    failures.push(`${name}: more than one Access-Control-Allow-Origin reached the caller: ${result.allowOrigin}`);
+  } else if (!corsOk) {
+    failures.push(
+      `${name}: expected Access-Control-Allow-Origin ${result.expectedAllowOrigin}, got ${result.allowOrigin}`,
+    );
+  }
+
   return result;
 }
 
-const preflight = await call({ method: "OPTIONS" });
-seenBodies.push(preflight.body);
-if (preflight.status === 204 && preflight.allowOrigin === ALLOWED_ORIGIN) {
-  console.log(`✓ the preflight admits the configured origin — 204 ${preflight.allowOrigin}`);
-} else {
-  console.log(`✗ the preflight admits the configured origin — ${preflight.status} ${preflight.allowOrigin}`);
-  failures.push(
-    `preflight: expected 204 with Access-Control-Allow-Origin ${ALLOWED_ORIGIN}, got ${preflight.status} ${preflight.allowOrigin}`,
-  );
+const preflight = await expect("a browser preflight is answered", () => call({ method: "OPTIONS" }), 204);
+
+// The status and the allow-origin are not enough to let the POST follow: a
+// browser reads all three of these off the preflight and refuses the real
+// request if any of them is missing or wrong.
+for (const [what, value, needle] of [
+  ["allow-methods", preflight.allowMethods, "POST"],
+  ["allow-headers", preflight.allowHeaders, "Content-Type"],
+  ["vary", preflight.vary, "Origin"],
+]) {
+  const ok = value?.toLowerCase().includes(needle.toLowerCase());
+  console.log(`${ok ? "✓" : "✗"} the preflight carries ${needle} in ${what} — ${value}`);
+  if (!ok) failures.push(`preflight: expected ${what} to carry ${needle}, got ${value}`);
 }
+
+await expect(
+  "a preflight from another website is refused",
+  () => call({ method: "OPTIONS", origin: OTHER_ORIGIN }),
+  403,
+);
 
 await expect("another website is refused", () => call({ origin: OTHER_ORIGIN }), 403, "not allowed");
 
@@ -192,6 +235,14 @@ await expect(
 await expect(
   "a well-formed request reaches the provider, which rejects the throwaway key",
   () => call(),
+  502,
+  "rejected the request",
+);
+
+// The address is a mount, not one route, and the README says so.
+await expect(
+  "a path beneath the address reaches the Function too",
+  () => call({ path: "/v2/chat" }),
   502,
   "rejected the request",
 );

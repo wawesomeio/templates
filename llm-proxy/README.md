@@ -52,6 +52,44 @@ npx wawesome env set OPENAI_API_KEY sk-... --secret
 npx wawesome deploy
 ```
 
+## The address your frontend calls
+
+```
+https://api.wawesome.io/x/<workspace>/llm-proxy/chat
+                        │      │           │      │
+                        │      │           │      └─ Function slug
+                        │      │           └─ App slug
+                        │      └─ your workspace slug
+                        └─ reserved for invocation, never a management route
+```
+
+`deploy` prints it. The App and Function slugs come from
+[`wawesome-function.json`](wawesome-function.json), so renaming either renames
+the address — worth doing before the URL is baked into a frontend build.
+
+From a page, that is one `fetch`:
+
+```js
+const response = await fetch('https://api.wawesome.io/x/acme/llm-proxy/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),
+});
+
+const { reply } = await response.json();
+```
+
+Cross-origin, the browser makes that two requests: an `OPTIONS` preflight first,
+then the `POST`. The preflight reaches this Function like anything else and
+`src/index.ts` answers it — there is no platform layer in front deciding CORS on
+your behalf. The `Origin` header arrives exactly as the browser sent it, which is
+what `ALLOWED_ORIGINS` is compared against.
+
+The address is a mount rather than a single route: every path beneath it reaches
+this Function too, which sees the path with the mount stripped off. A frontend
+posts to the address itself, so the handler runs for a request it sees as
+`POST /`.
+
 ## What it costs, per request
 
 Watch it as it happens:
@@ -114,6 +152,15 @@ the origin is checked.
 Leaving it unset answers any origin, so a first deploy works before you have
 decided anything. The Function logs a warning on every request while it is unset.
 
+What each answer looks like from the page is deliberate, and worth knowing when
+you are debugging one. An origin **on** the list gets CORS headers on every
+response it receives, refusals included — without them a browser cannot read the
+status or the body, and a `413` you cannot see is indistinguishable from the
+endpoint being down. An origin **not** on the list gets no allow-origin header at
+all, so the call fails in the browser as a CORS error rather than as a readable
+`403`. Handing it the header would be granting the access the refusal just
+denied.
+
 There is deliberately **no cross-request rate limit** in this template. A limiter
 worth having counts requests across invocations, and that needs shared state the
 runtime does not have yet; a counter in module scope would reset on essentially
@@ -162,7 +209,10 @@ llm-proxy/
 ```
 
 `policy.ts` and `usage.ts` are pure and have no dependencies, which is why the
-tests cover every refusal path without a single mock. Run them:
+tests cover every refusal path without a single mock.
+[`src/index.test.ts`](src/index.test.ts) drives the endpoint itself the way a
+browser does — the preflight, an admitted origin, a refused one, and the CORS
+headers on every answer each of them gets. Run them:
 
 ```bash
 npm test
