@@ -1,0 +1,19 @@
+{
+  "name": "rest-api",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A REST resource — a collection, its items, and a nested collection — served across several methods by one Function on wawesome.io",
+  "license": "MIT",
+  "scripts": {
+    "build": "wawesome build",
+    "deploy": "wawesome deploy",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wawesome": "^0.0.10"
+  }
+}
