@@ -12,7 +12,10 @@
  * without the provider enabled fails differently, and the endpoint answers with
  * a different body on purpose so the two are distinguishable from out here.
  *
- * Everything else it checks is a refusal decided before any money is spent.
+ * Everything else it checks is a refusal decided before any money is spent, and
+ * every one of them is answered before the stream begins — so what is asserted
+ * out here is the JSON refusal shape. The streamed answer itself needs a key
+ * that works, which is exactly what this run refuses to have.
  *
  * Every call also carries the CORS assertion a browser would make of it, since
  * the template's whole promise is that a page can call this. The header the

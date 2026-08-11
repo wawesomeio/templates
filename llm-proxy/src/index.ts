@@ -1,7 +1,8 @@
 import type OpenAI from "openai";
 import { LIMITS, checkOrigin, parseAllowedOrigins, parseChatRequest, type Refusal } from "./policy.js";
+import { eventStream, formatEvent, readDataEvents } from "./sse.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { readPricing, readUsage, usageLine } from "./usage.js";
+import { type TokenUsage, readPricing, readUsage, usageLine } from "./usage.js";
 
 /**
  * An LLM proxy your frontend can call.
@@ -17,7 +18,8 @@ import { readPricing, readUsage, usageLine } from "./usage.js";
  *      history they may send, and how long the answer may be.
  *
  * The client's half of the contract is deliberately tiny: POST `{ messages }`,
- * receive `{ reply }`. Model, temperature and output ceiling are not fields.
+ * receive the answer as server-sent events. Model, temperature and output
+ * ceiling are not fields.
  */
 
 /** Any OpenAI-compatible endpoint. Point it elsewhere with `OPENAI_BASE_URL`. */
@@ -26,6 +28,9 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 
 /** Bound on how much of a provider error is written to the logs. */
 const MAX_LOGGED_ERROR_CHARS = 500;
+
+/** Said in a refusal before the stream begins, and on the stream after it. */
+const UNUSABLE = "The model provider returned an unusable response.";
 
 /**
  * Answer with no CORS headers at all — the only honest response to an origin
@@ -76,7 +81,7 @@ export default {
     const model = process.env.OPENAI_MODEL || DEFAULT_MODEL;
     const baseUrl = (process.env.OPENAI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 
-    const body: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
+    const body: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
       model,
       // The server's prompt first, the client's conversation after it. The
       // client cannot get a message in front of this one — `parseChatRequest`
@@ -88,6 +93,11 @@ export default {
       // old name; if yours ignores this, that is the one word to change.
       max_completion_tokens: LIMITS.maxOutputTokens,
       temperature: 0.3,
+      stream: true,
+      // Without this the token counts simply never arrive: a streamed completion
+      // reports usage in one final event, and only to a request that asked for
+      // it. Opting out here would turn this endpoint's cost line into zeroes.
+      stream_options: { include_usage: true },
     };
 
     const startedAt = Date.now();
@@ -106,7 +116,7 @@ export default {
       // this, the likely cause is that the host is not on this App's outbound
       // allowlist — `init --template` enables the `openai` provider, but a
       // different OPENAI_BASE_URL needs its host added.
-      console.error(`Could not reach ${baseUrl}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      console.error(`Could not reach ${baseUrl}: ${messageOf(cause)}`);
       return refuse({ status: 502, error: "The model provider could not be reached." }, origin.allowOrigin);
     }
 
@@ -122,28 +132,112 @@ export default {
         : refuse({ status: 502, error: "The model provider rejected the request." }, origin.allowOrigin);
     }
 
-    const completion = (await upstream.json().catch(() => null)) as OpenAI.Chat.Completions.ChatCompletion | null;
-    const reply = completion?.choices?.[0]?.message?.content;
+    if (!upstream.body) {
+      console.error("Provider answered 200 with no body.");
+      return refuse({ status: 502, error: UNUSABLE }, origin.allowOrigin);
+    }
 
-    // One line per request, on stdout, which is what `wawesome logs --follow`
-    // streams. This is where the bill the frontend can no longer see goes.
+    // The last point at which this endpoint can still choose a status. Everything
+    // after it is in-band, on a response the caller already holds — which is why
+    // the boundary is here rather than at the first token: waiting for the model
+    // to start would spend the invocation's time-to-commit on its latency, and a
+    // refusal shape is not worth being trapped for.
+    return new Response(eventStream(answerEvents(upstream.body, model, startedAt)), {
+      status: 200,
+      headers: {
+        ...corsHeaders(origin.allowOrigin),
+        "Content-Type": "text/event-stream",
+        // An answer generated once, for one caller, that no intermediary should
+        // ever hold on to or replay.
+        "Cache-Control": "no-store",
+      },
+    });
+  },
+};
+
+/**
+ * The stream is read once and serves two purposes: the text goes to the browser
+ * as it arrives, and the token counts riding on the provider's final event go to
+ * the log line. Recovering the usage from a second pass would mean parsing the
+ * same events twice; losing it would mean the cost line quietly reporting zero
+ * for every streamed answer, which is the thing this template exists to show.
+ */
+async function* answerEvents(
+  body: ReadableStream<Uint8Array>,
+  model: string,
+  startedAt: number,
+): AsyncGenerator<string> {
+  let usage: TokenUsage | null = null;
+  let finishReason: string | null = null;
+  let delivered = false;
+
+  try {
+    for await (const data of readDataEvents(body)) {
+      const chunk = parseChunk(data);
+      if (!chunk) continue;
+
+      // Once the opt-in is on every event carries the field, holding null until
+      // the last one — so this keeps the newest usable value rather than the
+      // newest value, and tolerates a provider that reports it somewhere else.
+      usage = readUsage(chunk) ?? usage;
+
+      const choice = chunk.choices?.[0];
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+
+      const text = choice?.delta?.content;
+      if (typeof text === "string" && text.length > 0) {
+        delivered = true;
+        yield formatEvent("delta", { text });
+      }
+    }
+
+    if (!delivered) {
+      console.error("Provider answered 200 with no message content.");
+      yield formatEvent("error", { error: UNUSABLE });
+      return;
+    }
+
+    if (!finishReason) {
+      // Neither event is the contract's third case, and the only honest one: a
+      // body that stopped without saying why may have been cut off, and `stop`
+      // would tell the page a half answer is whole.
+      console.error(`The provider's stream ended with no finish_reason after ${Date.now() - startedAt}ms.`);
+      return;
+    }
+
+    yield formatEvent("done", { finish_reason: finishReason });
+  } catch (cause) {
+    // The status went out with the first byte, so this is the only way left to
+    // tell the caller. A page that has seen neither this nor `done` has an
+    // answer that stopped for a reason nothing in the stream could report —
+    // a dropped connection, or the platform ending the invocation.
+    console.error(`The provider's stream failed after ${Date.now() - startedAt}ms: ${messageOf(cause)}`);
+    yield formatEvent("error", { error: "The answer was interrupted." });
+  } finally {
+    // In `finally` so the bill is recorded for an answer that broke or was
+    // abandoned exactly as it is for one that finished.
     console.log(
       usageLine({
         model,
-        usage: readUsage(completion),
+        usage,
         elapsedMs: Date.now() - startedAt,
         pricing: readPricing(process.env),
       }),
     );
+  }
+}
 
-    if (typeof reply !== "string") {
-      console.error("Provider answered 200 with no message content.");
-      return refuse({ status: 502, error: "The model provider returned an unusable response." }, origin.allowOrigin);
-    }
+function parseChunk(data: string): OpenAI.Chat.Completions.ChatCompletionChunk | null {
+  try {
+    return JSON.parse(data) as OpenAI.Chat.Completions.ChatCompletionChunk;
+  } catch {
+    return null;
+  }
+}
 
-    return json({ reply }, 200, origin.allowOrigin);
-  },
-};
+function messageOf(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause);
+}
 
 /**
  * CORS headers for an answer.
@@ -172,7 +266,14 @@ function json(payload: unknown, status: number, allowOrigin: string | null): Res
   });
 }
 
-/** A refusal, answered in the same shape as a success so a client parses one path. */
+/**
+ * A refusal, in JSON rather than on the stream.
+ *
+ * Everything decided before the answer begins is answered this way — the origin,
+ * the body, the ceilings, and a provider that refuses or cannot be reached. A
+ * client checks `response.ok` before it starts reading events, and gets one
+ * `error` string either way.
+ */
 function refuse(refusal: Refusal, allowOrigin: string | null): Response {
   return json({ error: refusal.error }, refusal.status, allowOrigin);
 }
