@@ -2,7 +2,7 @@
   "name": "llm-proxy",
   "version": "1.0.0",
   "type": "module",
-  "description": "A server-side LLM proxy that keeps your API key and system prompt off the client, running on wawesome.io",
+  "description": "A server-side LLM proxy that streams the model's answer to the browser while keeping your API key and system prompt off the client, running on wawesome.io",
   "license": "MIT",
   "scripts": {
     "build": "wawesome build",

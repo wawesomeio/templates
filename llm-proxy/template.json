@@ -2,7 +2,7 @@
   "$schema": "../template.schema.json",
   "name": "llm-proxy",
   "title": "LLM Proxy",
-  "description": "A server-side proxy for any OpenAI-compatible model, so your API key and your system prompt never reach the browser and every request has a cost ceiling.",
+  "description": "A server-side proxy for any OpenAI-compatible model that streams the answer to your page as it is generated, so your API key and your system prompt never reach the browser and every request has a cost ceiling.",
   "tags": ["openai", "llm", "ai", "proxy", "api-key", "typescript"],
   "ref": "llm-proxy",
   "env": [
@@ -22,5 +22,5 @@
     }
   ],
   "providers": ["openai"],
-  "post_deploy": "Your proxy is live at {{url}}\n\nCall it from your frontend:\n  fetch('{{url}}', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),\n  })\n\nThen:\n  1. Edit src/system-prompt.ts — the shipped prompt is a placeholder persona, yours is the point.\n  2. Lock the endpoint to your site:\n       wawesome env set ALLOWED_ORIGINS https://your-site.com\n  3. Watch what each request costs, in tokens, as it happens:\n       wawesome logs --follow\n  4. Shipped a bad prompt? Roll the Function back — no redeploy, no git revert."
+  "post_deploy": "Your proxy is live at {{url}}\n\nCall it from your frontend:\n  const response = await fetch('{{url}}', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),\n  })\n\nThe answer streams back as server-sent events, so the page renders it as the\nmodel writes it:\n\n  event: delta\n  data: {\"text\":\"Your order \"}\n\n  event: done\n  data: {\"finish_reason\":\"stop\"}\n\nAnything refused before the answer begins is still JSON with a status, so check\nresponse.ok before you start reading. The README has the whole reader — it is\ntwenty lines.\n\nThen:\n  1. Edit src/system-prompt.ts — the shipped prompt is a placeholder persona, yours is the point.\n  2. Lock the endpoint to your site:\n       wawesome env set ALLOWED_ORIGINS https://your-site.com\n  3. Watch what each request costs, in tokens, as it happens:\n       wawesome logs --follow\n  4. Shipped a bad prompt? Roll the Function back — no redeploy, no git revert."
 }
