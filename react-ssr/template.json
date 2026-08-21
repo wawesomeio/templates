@@ -1,0 +1,12 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "react-ssr",
+  "title": "React (server-rendered)",
+  "description": "A React application rendered on the server and streamed to the browser, with its assets resolving correctly under every address the App answers at — no rebuild between them.",
+  "tags": ["react", "ssr", "streaming", "vite", "frontend", "typescript"],
+  "ref": "react-ssr",
+  "env": [],
+  "providers": [],
+  "bundle_budget_bytes": 262144,
+  "post_deploy": "Your application is live at {{url}}\n\nOpen it and read the page source: the markup is already there, before any script has run.\n\nThen:\n  1. Work on it locally, with hot reloading:\n       npm run dev\n  2. Open src/App.tsx — that is the page. src/entry.server.tsx is the handler\n     the platform calls, and the only file that knows about HTTP.\n  3. Every URL in the document is built from the prefix the platform stripped,\n     so the same build serves the App's hostname, an older slug and a preview\n     URL. See src/mount.ts for why that is not optional.\n  4. Watch requests land as they happen:\n       wawesome logs --follow\n\nOne budget to keep in mind: a single render has fuel for roughly 165 KB of HTML.\nPaginate long lists rather than streaming all of one page."
+}

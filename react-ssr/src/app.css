@@ -1,0 +1,134 @@
+:root {
+  color-scheme: light dark;
+  --ink: light-dark(#16181d, #e8eaf0);
+  --muted: light-dark(#5c6270, #9aa1b1);
+  --rule: light-dark(#e2e5ec, #2a2e38);
+  --panel: light-dark(#ffffff, #191c22);
+  --page: light-dark(#f6f7f9, #101216);
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 0.875em;
+}
+
+.page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+}
+
+.masthead {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+}
+
+.mark {
+  flex: none;
+  margin-top: 0.35rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.lede {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+}
+
+.panel {
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.events li {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.events li:first-child {
+  border-top: 0;
+}
+
+.when {
+  flex: none;
+  width: 3.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.toggle {
+  font: inherit;
+  font-size: 0.9rem;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  border-color: var(--muted);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4rem 1.25rem;
+  margin: 1rem 0 0;
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.footer {
+  margin-top: 2rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}

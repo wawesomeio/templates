@@ -1,0 +1,28 @@
+{
+  "name": "react-ssr",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A React application rendered and streamed from a Function on wawesome.io, with its assets resolving under every address the App answers at",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "wawesome build",
+    "deploy": "wawesome deploy",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.10",
+    "wawesome": "^0.4.0"
+  }
+}

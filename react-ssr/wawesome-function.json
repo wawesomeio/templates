@@ -1,0 +1,7 @@
+{
+  "app": "react-ssr",
+  "function": "root",
+  "build": "vite build",
+  "entry": "dist/server/index.js",
+  "assets": "dist/client"
+}

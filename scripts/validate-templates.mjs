@@ -3,7 +3,7 @@
  *
  * Two kinds of check live here. The schema covers the shape of one manifest; the
  * invariants below cover what a schema cannot see — whether the directory the
- * manifest names is really there, whether the entry file it will be built from
+ * manifest names is really there, whether the entry the build starts from — or produces —
  * exists, whether two templates have claimed the same name. Both run before a
  * commit can advance any stable tag, because a manifest is a promise the CLI
  * will act on without a human in the loop.
@@ -81,8 +81,13 @@ for (const dir of templateDirs) {
         recordProblem(dir, `wawesome-function.json is missing "${field}".`);
       }
     }
-    if (config.entry && !existsSync(join(repoRoot, dir, config.entry))) {
-      recordProblem(dir, `wawesome-function.json points at entry "${config.entry}", which does not exist.`);
+    // An entry a build produces is not on disk until that build has run, so
+    // what is checked there is that the template declares the command.
+    if (config.entry && !config.build && !existsSync(join(repoRoot, dir, config.entry))) {
+      recordProblem(
+        dir,
+        `wawesome-function.json points at entry "${config.entry}", which the template neither ships nor declares a "build" that produces.`,
+      );
     }
   }
 
