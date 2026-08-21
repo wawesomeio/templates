@@ -14,6 +14,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
 | [`rest-api`](rest-api) | A collection, its items and a nested collection, served across several HTTP methods by one Function |
+| [`react-ssr`](react-ssr) | A React application rendered on the server and streamed to the browser, with its assets resolving under every address the App answers at |
 
 ## Using a template
 
@@ -122,8 +123,10 @@ cd <template> && npm ci && npm run typecheck && npm test
 `.github/workflows/templates.yml` runs in two halves.
 
 **Always:** validate every manifest, then type-check, test and build every
-template, asserting the built bundle stays small enough to prove no provider SDK
-leaked into it.
+template, asserting the built bundle stays inside the budget that template
+declares — tight enough by default to prove no provider SDK leaked into one that
+imports its dependencies type-only, and stated explicitly by a template that
+carries a rendering runtime on purpose.
 
 **Once a gateway exists:** deploy each template to the real platform with the
 published CLI, drive it end to end, and only then advance its stable tag.

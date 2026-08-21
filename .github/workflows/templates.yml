@@ -92,12 +92,17 @@ jobs:
       - run: npm test
       - name: Build the deployable bundle
         run: npx wawesome build
-      - name: Check no provider SDK reached the bundle
+      # What a ceiling guards differs by template — that no provider SDK leaked
+      # into a bundle importing one type-only, or that a rendering runtime stays
+      # inside the fuel one invocation has — so the template states its own. The
+      # default is tight enough to catch the first.
+      - name: Check the bundle stays inside its budget
         run: |
+          budget=$(jq -r '.bundle_budget_bytes // 65536' template.json)
           bytes=$(wc -c < dist/index.js)
-          echo "Bundle: $bytes bytes"
-          if [ "$bytes" -gt 65536 ]; then
-            echo "::error::Bundle is $bytes bytes. Provider SDKs are imported type-only so the bundler erases them — a bundle this size means one is being pulled in at runtime, which will not survive the WASM runtime either."
+          echo "Bundle: $bytes bytes (budget $budget)"
+          if [ "$bytes" -gt "$budget" ]; then
+            echo "::error::Bundle is $bytes bytes, over this template's $budget-byte budget. For a template whose dependencies are type-only, that means one is being pulled in at runtime and will not survive the WASM runtime either."
             exit 1
           fi
 

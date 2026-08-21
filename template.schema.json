@@ -64,6 +64,11 @@
       "type": "array",
       "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
     },
+    "bundle_budget_bytes": {
+      "description": "The largest the built server bundle may be before CI fails. The default is tight enough to catch a provider SDK leaking into a bundle that imports it type-only, which is the shape most templates take; a template that carries a runtime on purpose — a renderer, a parser — states the size it means to ship instead. Distinct from what a single invocation may render, which is a fuel limit and belongs in the template's own docs.",
+      "type": "integer",
+      "minimum": 1
+    },
     "post_deploy": {
       "description": "Printed after a successful deploy. `{{url}}` is interpolated with the Function's public URL — the only placeholder anywhere in the template system, and it never touches a source file.",
       "type": "string",

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Serverless React</title>
+  </head>
+  <body>
+    <!--
+      Inlined into the server bundle at build time and never uploaded: served as
+      a static file at the mount root it would shadow the route that renders the
+      page, and every visitor would get this empty shell instead.
+    -->
+    <div id="root"><!--app-html--></div>
+    <script type="module" src="/src/entry.client.tsx"></script>
+  </body>
+</html>
