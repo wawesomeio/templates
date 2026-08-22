@@ -52,7 +52,9 @@ for (const dir of templateDirs) {
   // templates racing for the same tag.
   duplicate(seenRefs, manifest.ref, dir, "ref");
 
-  if (!manifest.post_deploy.includes("{{url}}")) {
+  const configPath = join(repoRoot, dir, "wawesome-function.json");
+  const isPrivate = existsSync(configPath) && readJson(configPath).visibility === "private";
+  if (!isPrivate && !manifest.post_deploy.includes("{{url}}")) {
     recordProblem(dir, "post_deploy never interpolates {{url}}, so the user is not told where their Function is.");
   }
 
@@ -73,7 +75,6 @@ for (const dir of templateDirs) {
     }
   }
 
-  const configPath = join(repoRoot, dir, "wawesome-function.json");
   if (existsSync(configPath)) {
     const config = readJson(configPath);
     for (const field of ["app", "function", "entry"]) {

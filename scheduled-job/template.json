@@ -1,0 +1,26 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "scheduled-job",
+  "title": "Scheduled Job",
+  "description": "A scheduled background job that runs on a recurring timer — private visibility, a Schedule block, trigger verification, and structured logging.",
+  "tags": ["scheduled", "cron", "timer", "background", "job", "typescript"],
+  "ref": "scheduled-job",
+  "env": [
+    {
+      "key": "TARGET_URL",
+      "required": false,
+      "secret": false,
+      "description": "The URL to monitor and health-check on each scheduled run. Defaults to https://httpbin.org/status/200 if not set.",
+      "where_to_find": "The address of the service or endpoint you want to health-check."
+    },
+    {
+      "key": "JOB_SECRET",
+      "required": false,
+      "secret": true,
+      "description": "Optional bearer token for manual HTTP requests when invoked outside of a scheduled run. A scheduled run skips this check automatically via the trigger header.",
+      "where_to_find": "Any random secret string you generate, e.g. using `openssl rand -hex 24`."
+    }
+  ],
+  "providers": [],
+  "post_deploy": "Your scheduled job is deployed!\n\nThis Function is private and runs on a recurring Schedule.\n\nNext steps:\n  1. View your active schedules and next run times:\n       wawesome cron list\n  2. Follow execution logs in real time as scheduled runs fire:\n       wawesome logs --follow\n  3. Manually trigger a run without waiting for the next timer tick:\n       wawesome invoke\n  4. Pause or resume the schedule at any time:\n       wawesome cron pause health-check\n       wawesome cron resume health-check"
+}

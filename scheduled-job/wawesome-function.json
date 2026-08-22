@@ -1,0 +1,12 @@
+{
+  "app": "scheduled-job",
+  "function": "health-check",
+  "entry": "src/index.ts",
+  "visibility": "private",
+  "schedules": [
+    {
+      "name": "health-check",
+      "expression": "*/5 * * * *"
+    }
+  ]
+}
