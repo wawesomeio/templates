@@ -1,0 +1,19 @@
+{
+  "name": "scheduled-job",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A scheduled background job that runs on a recurring timer on wawesome.io",
+  "license": "MIT",
+  "scripts": {
+    "build": "wawesome build",
+    "deploy": "wawesome deploy",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wawesome": "^0.0.15"
+  }
+}

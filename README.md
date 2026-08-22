@@ -15,6 +15,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
 | [`rest-api`](rest-api) | A collection, its items and a nested collection, served across several HTTP methods by one Function |
 | [`react-ssr`](react-ssr) | A React application rendered on the server and streamed to the browser, with its assets resolving under every address the App answers at |
+| [`scheduled-job`](scheduled-job) | A scheduled background job that runs on a recurring timer — private visibility, a Schedule block, trigger verification, and structured logging |
 
 ## Using a template
 
