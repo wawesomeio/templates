@@ -1,0 +1,11 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "landing-page",
+  "title": "Landing Page",
+  "description": "A one-page website for a small business — headline, three sections, contact details. One file, no build step, and nothing to upload alongside it.",
+  "tags": ["website", "landing-page", "one-page", "html", "no-build", "small-business"],
+  "ref": "landing-page",
+  "env": [],
+  "providers": [],
+  "post_deploy": "Your page is live at {{url}}\n\nOpen it, then:\n  1. The words are in the `site` object at the top of src/index.js. Change them\n     and deploy again — that is the whole editing story.\n  2. The \"Built with wawesome\" line in the footer is yours to keep or delete.\n     Nothing on the platform adds it back.\n  3. Want your own address on it? Attach a domain from the dashboard.\n\nThere is no build and there are no files beside this one: the page is markup the\nFunction returns, so everything a visitor loads is in src/index.js."
+}

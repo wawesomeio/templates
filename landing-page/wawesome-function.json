@@ -1,0 +1,5 @@
+{
+  "app": "landing-page",
+  "function": "home",
+  "entry": "src/index.js"
+}

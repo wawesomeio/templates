@@ -1,0 +1,19 @@
+{
+  "name": "landing-page",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A one-page website returned by a single Function on wawesome.io — no build, no static assets",
+  "license": "MIT",
+  "scripts": {
+    "build": "wawesome build",
+    "deploy": "wawesome deploy",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wawesome": "^0.14.3"
+  }
+}
