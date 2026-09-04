@@ -11,6 +11,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 
 | Template | What it is |
 | --- | --- |
+| [`landing-page`](landing-page) | A one-page website for a small business, returned by one Function — one file, no build step, and nothing to upload beside it |
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
 | [`rest-api`](rest-api) | A collection, its items and a nested collection, served across several HTTP methods by one Function |
