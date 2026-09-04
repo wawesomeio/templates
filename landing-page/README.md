@@ -76,7 +76,7 @@ rather than a 404. `GET` and `HEAD` are answered; anything else comes back
 ## Tests
 
 ```bash
-npm test        # vitest, against the guest's JavaScript surface
+npm test        # vitest, against the JavaScript your Function actually gets
 npm run typecheck
 ```
 
