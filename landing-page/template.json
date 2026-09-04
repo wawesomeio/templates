@@ -3,7 +3,7 @@
   "name": "landing-page",
   "title": "Landing Page",
   "description": "A one-page website for a small business — headline, three sections, contact details. One file, no build step, and nothing to upload alongside it.",
-  "tags": ["website", "landing-page", "one-page", "html", "no-build", "small-business"],
+  "tags": ["website", "landing-page", "one-page", "small-business", "marketing"],
   "ref": "landing-page",
   "env": [],
   "providers": [],

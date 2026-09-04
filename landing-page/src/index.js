@@ -64,7 +64,12 @@ export default {
   },
 };
 
-/** @returns {string} */
+/**
+ * The whole document. The attribution line in the footer is yours to delete —
+ * the platform injects nothing into what this returns, so nothing puts it back.
+ *
+ * @returns {string}
+ */
 function page() {
   return `<!doctype html>
 <html lang="en">
@@ -84,8 +89,7 @@ function page() {
         <a class="cta" href="${escapeHtml(site.cta.href)}">${escapeHtml(site.cta.label)}</a>
       </header>
 
-      <section class="cards">
-        ${site.sections.map(card).join("\n\n        ")}
+      <section class="cards">${site.sections.map(card).join("")}
       </section>
 
       <section class="contact">
@@ -96,7 +100,6 @@ function page() {
 
     <footer>
       <p>${escapeHtml(site.footer)}</p>
-      <!-- Yours to keep or delete. Nothing on the platform adds it back. -->
       <p class="attribution"><a href="https://wawesome.io">Built with wawesome</a></p>
     </footer>
   </body>
@@ -109,7 +112,8 @@ function page() {
  * @returns {string}
  */
 function card(section) {
-  return `<article>
+  return `
+        <article>
           <h2>${escapeHtml(section.title)}</h2>
           <p>${escapeHtml(section.body)}</p>
         </article>`;
