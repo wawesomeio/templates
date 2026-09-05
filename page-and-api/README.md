@@ -106,9 +106,10 @@ address nobody deployed anything for, and there is one copy of it.
 
 `src/index.js` keeps a short map of the pages this deploy carries. On your App's
 hostname nothing reads it — the platform has already served those addresses. It
-is for the development path form (`/x/<workspace>/<app>/<function>/…`), where
-every request reaches your handler because a file served on an origin every
-workspace shares would be same-origin with all of them. Naming the page back
+is for the development path form (`/x/<workspace>/<app>/…`, which is where a
+root Function answers), where every request reaches your handler because a file
+served on an origin every workspace shares would be same-origin with all of
+them. Naming the page back
 there is what makes the two surfaces behave alike.
 
 ## Editing it

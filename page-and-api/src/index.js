@@ -17,9 +17,9 @@ import { readOrder, quote } from "./pricing.js";
 /**
  * The pages this deploy carries, by the address each answers at.
  *
- * Only the development path form (`/x/<workspace>/<app>/<function>/…`) reads
- * this: every request there reaches the handler, files included, so naming the
- * page back is what makes that surface behave like the hostname a visitor uses.
+ * Only the development path form (`/x/<workspace>/<app>/…`) reads this: every
+ * request there reaches the handler, files included, so naming the page back is
+ * what makes that surface behave like the hostname a visitor uses.
  */
 const pages = new Map([
   ["", "index.html"],
