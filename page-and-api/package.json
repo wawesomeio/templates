@@ -1,0 +1,19 @@
+{
+  "name": "page-and-api",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A landing page and the endpoint its form posts to, deployed together to wawesome.io — the pages are files, the endpoint is a handler, and they share one hostname and one rollback",
+  "license": "MIT",
+  "scripts": {
+    "build": "wawesome build",
+    "deploy": "wawesome deploy",
+    "test": "vitest run",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10",
+    "wawesome": "^0.15.0"
+  }
+}

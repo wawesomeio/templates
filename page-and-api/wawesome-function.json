@@ -1,0 +1,6 @@
+{
+  "app": "page-and-api",
+  "function": "root",
+  "entry": "src/index.js",
+  "assets": "public"
+}
