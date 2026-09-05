@@ -195,7 +195,14 @@ jobs:
           fi
           app=$(jq -r '.app' "$TEMPLATE/wawesome-function.json")
           fn=$(jq -r '.function' "$TEMPLATE/wawesome-function.json")
-          echo "url=$GATEWAY_URL/x/$slug/$app/$fn" >> "$GITHUB_OUTPUT"
+          # A Function named `root` owns the App's address itself: the segment
+          # that would have named it is the caller's own path, so appending it
+          # drives every request one path deeper than the template serves.
+          url="$GATEWAY_URL/x/$slug/$app"
+          if [ "$fn" != "root" ]; then
+            url="$url/$fn"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Drive the deployed Function
         # Through the environment rather than interpolated into the script: the

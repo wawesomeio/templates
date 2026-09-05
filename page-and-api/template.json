@@ -1,0 +1,11 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "page-and-api",
+  "title": "Page + API",
+  "description": "A landing page and the endpoint its form posts to, in one deploy — the pages are files the platform serves, the answer comes from a handler beside them, and there is one hostname, no CORS and one thing to roll back.",
+  "tags": ["website", "landing-page", "api", "form", "documents", "javascript"],
+  "ref": "page-and-api",
+  "env": [],
+  "providers": [],
+  "post_deploy": "Your site is live at {{url}}\n\nOpen it and price a run of cards. The page is a file this deploy carried; the\nprice comes back from the handler in the same deploy, at the same address.\n\nThen:\n  1. The pages are in public/. Edit index.html, deploy again — that is the whole\n     editing story, and there is no build step.\n  2. The rates are in src/pricing.js, and the page does not know them. Change one\n     and every visitor is quoted the new figure on the next deploy.\n  3. The pages and the handler go up as one Version, so `npx wawesome version\n     switch` takes both back together. There is no second vendor to keep in step.\n  4. Want your own address on it? Attach a domain from the dashboard.\n\nOn your App's own hostname the platform serves public/index.html straight from\nstorage, and your handler runs only for the form's POST and for addresses no\npage claims. On the development path form (/x/...) every request reaches the\nhandler instead, which is why src/index.js keeps a short map of the pages this\ndeploy carries and hands them back by name."
+}
