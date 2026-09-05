@@ -12,8 +12,9 @@ export const prices = {
   tiers: [
     { up_to: 100, pence: 42 },
     { up_to: 500, pence: 34 },
-    { up_to: Infinity, pence: 26 },
   ],
+  /** The rate for a run longer than any tier names. */
+  over_that_pence: 26,
   rush_surcharge: 0.25,
   lead_time_days: { standard: 15, rush: 5 },
 };
@@ -134,7 +135,7 @@ export function quote({ quantity, colours, rush }) {
  */
 function rateFor(quantity) {
   const tier = prices.tiers.find(({ up_to }) => quantity <= up_to);
-  return (tier ?? prices.tiers[prices.tiers.length - 1]).pence;
+  return tier ? tier.pence : prices.over_that_pence;
 }
 
 /**

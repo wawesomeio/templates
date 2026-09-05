@@ -45,7 +45,7 @@ export default {
     }
 
     const page = pages.get(path);
-    return page ? document(page, 200) : document(NOT_FOUND, 404);
+    return page ? documentNamed(page, 200) : documentNamed(NOT_FOUND, 404);
   },
 };
 
@@ -60,7 +60,7 @@ export default {
  * @param {number} status
  * @returns {Response}
  */
-function document(file, status) {
+function documentNamed(file, status) {
   return new Response(null, { status, headers: { "x-wawesome-document": file } });
 }
 

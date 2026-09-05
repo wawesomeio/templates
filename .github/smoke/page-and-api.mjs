@@ -32,6 +32,18 @@ function check(what, ok, detail = "") {
   if (!ok) failures.push(what);
 }
 
+/** The body as JSON, recorded as a check either way rather than thrown. */
+function asJson(what, response) {
+  try {
+    const body = JSON.parse(response.text);
+    check(what, true);
+    return body;
+  } catch {
+    check(what, false, response.text.slice(0, 160));
+    return {};
+  }
+}
+
 async function post(path, body, contentType = "application/json") {
   const response = await fetch(address + path, {
     method: "POST",
@@ -76,12 +88,7 @@ check("it is answered with the not-found page", missingBody === deployed.notFoun
 const quoted = await post("", { quantity: 250, colours: 2, rush: false });
 check("an order posted to the page's own address is priced", quoted.status === 200, quoted.text.slice(0, 160));
 
-let priced = {};
-try {
-  priced = JSON.parse(quoted.text);
-} catch {
-  check("the price comes back as JSON", false, quoted.text.slice(0, 160));
-}
+const priced = asJson("the price comes back as JSON", quoted);
 
 check(
   "the quote names its lines and a total in pence",
@@ -96,11 +103,12 @@ check(
 );
 
 const rushed = await post("", { quantity: 250, colours: 2, rush: true });
+const rushedQuote = asJson("the rush price comes back as JSON", rushed);
 check(
   "a rush order costs more and lands sooner",
   rushed.status === 200 &&
-    JSON.parse(rushed.text).total_pence > priced.total_pence &&
-    JSON.parse(rushed.text).lead_time_days < priced.lead_time_days,
+    rushedQuote.total_pence > priced.total_pence &&
+    rushedQuote.lead_time_days < priced.lead_time_days,
   rushed.text.slice(0, 160),
 );
 
