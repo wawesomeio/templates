@@ -251,25 +251,25 @@
 
           const body = await response.json();
           if (!response.ok) {
-            answer.innerHTML = "";
-            const problem = document.createElement("p");
-            problem.className = "problem";
-            problem.textContent = body.error ?? "That did not work.";
-            answer.append(problem);
+            showProblem(body.error ?? "That did not work.");
             return;
           }
 
           render(body);
         } catch {
-          answer.innerHTML = "";
-          const problem = document.createElement("p");
-          problem.className = "problem";
-          problem.textContent = "Could not reach the studio just now. Try again in a moment.";
-          answer.append(problem);
+          showProblem("Could not reach the studio just now. Try again in a moment.");
         } finally {
           button.disabled = false;
         }
       });
+
+      function showProblem(text) {
+        answer.innerHTML = "";
+        const problem = document.createElement("p");
+        problem.className = "problem";
+        problem.textContent = text;
+        answer.append(problem);
+      }
 
       function render(quote) {
         const rows = quote.lines
