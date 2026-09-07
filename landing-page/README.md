@@ -17,20 +17,22 @@ npx wawesome deploy
 The deploy prints the address. Open it and you have a page you can send to
 somebody.
 
-## Why a page is a Function here
+## Why this page is one file
 
-A page on this platform is never a file. A static asset whose path ends in
-`.html` is refused at deploy time, so a document served from your App's own
-origin has to be markup a Function returned.
+A page here does not have to be a Function. A deploy can carry `index.html` as a
+file beside the code and the platform serves it straight from storage, which is
+what [`page-and-api`](https://github.com/wawesomeio/templates/tree/main/page-and-api)
+does. If you would rather write your site as HTML, start there instead.
 
-That rule is why this template needs nothing else. There is no build output to
-hash, no upload step, no `dist/` to keep in step with a source tree — the whole
-site is one JavaScript module whose `fetch` handler returns a string. It is
-small enough to paste, which means an agent with no terminal can deploy it as
-easily as you can.
+This template returns the markup from a handler because that leaves it with
+nothing else to carry. No build output to hash, no file to declare in the
+deploy, no `dist/` to keep in step with a source tree. The whole site is one
+JavaScript module whose `fetch` handler returns a string. It is small enough to
+paste, which means an agent holding no terminal can deploy it as easily as you
+can.
 
-The same rule applies to what the page references: a stylesheet or an image
-would be a static asset and a second deploy step, so the styles are inline in
+The same reasoning covers what the page references. A stylesheet or an image
+would be one more file to declare and keep in step, so the styles are inline in
 the markup instead. If you want client-side behaviour, reach for a module the
 visitor's browser loads from a CDN rather than for a bundler you do not have.
 

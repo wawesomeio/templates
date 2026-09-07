@@ -1,12 +1,12 @@
 /**
  * A landing page, served by one Function.
  *
- * This template is the shape rather than the content. A page on this platform is
- * never a file: `.html` is refused as a static asset, so what a visitor loads is
- * always markup a Function returned. That is why this whole project is one file
- * with no imports — it is deployable exactly as it reads here, whether it goes
- * up through `wawesome deploy` or is handed to the platform as one string by an
- * agent holding no terminal.
+ * This template is the shape rather than the content. A deploy here can carry
+ * pages as files beside the code, which is what `page-and-api` does. This one
+ * carries nothing at all. The whole project is one file with no imports,
+ * deployable exactly as it reads here, whether it goes up through
+ * `wawesome deploy` or is handed to the platform as one string by an agent
+ * holding no terminal.
  *
  * Written in JavaScript on purpose. A build step would put a bundler between
  * what you read and what runs, and there is nothing here that needs one.
@@ -134,8 +134,8 @@ export function escapeHtml(value) {
 }
 
 /**
- * One stylesheet, inline. A separate `.css` file would be a static asset, an
- * upload, and a second thing to keep in step with this one.
+ * One stylesheet, inline. A separate `.css` file would be another file in the
+ * deploy and a second thing to keep in step with this one.
  *
  * @returns {string}
  */
