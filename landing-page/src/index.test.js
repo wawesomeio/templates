@@ -20,8 +20,8 @@ describe("the page", () => {
   it("carries everything it needs inside the one response", async () => {
     const { body } = await get();
 
-    // No stylesheet link, no script tag, no image: a static asset is a second
-    // deploy step, and this template's whole claim is that there isn't one.
+    // No stylesheet link, no script tag, no image: this template's whole claim
+    // is that the deploy carries nothing beside the code.
     expect(body).toContain("<style>");
     expect(body).not.toMatch(/<link[^>]+stylesheet/);
     expect(body).not.toContain("<script");
