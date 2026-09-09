@@ -33,18 +33,28 @@ npm run dev
 ```
 
 Hot module replacement, with the application driven through the same
-`entry.server.tsx` the platform calls — so what you see locally is the rendering
-path, not a client-only approximation of it.
+`entry.server.tsx` the platform calls, so what you see locally is the rendering
+path and not a client-only approximation of it.
 
-The dev server also takes away the JavaScript the guest does not have. `Intl` is
-not defined in your own modules, and `toLocaleString` and its relatives throw
-rather than quietly ignoring the locale. Node has all of them; the guest has none.
-Without this, an app formatting a price renders `1,234.50` locally and `1234.5` in
-production — a hydration mismatch that local development cannot reproduce.
+One gap your machine cannot show you is locale formatting. The engine carries no
+ICU. `Intl` is not defined at all, and `toLocaleString` and its relatives are
+worse than absent. They answer, and they ignore the locale. A component
+formatting a price renders `1,234.50` here and `1234.5` in production, and you
+meet it as a hydration mismatch after you deploy.
 
-Format values yourself, or bundle a formatting library and call it directly. If you
-add an `Intl` polyfill to `package.json`, the dev server stops taking `Intl` away
-and the build stops objecting to it.
+The dev server removes `Intl` for you, so a reference to it fails locally exactly
+as it would on the guest. It cannot do the same for the methods. They live on
+Node's own prototypes, which Vite shares, so taking them away would break the dev
+server itself. It prints a warning naming them at startup instead.
+
+Two things do hold you to it. `npm run build` warns about each one, naming the
+file and line, and `npm test` refuses them outright, through the
+`wawesome/vitest-setup` that `vitest.config.ts` already loads. So run the suite
+before you deploy.
+
+Format the value yourself, or bundle a formatting library and call it directly.
+If you add an `Intl` polyfill to `package.json`, the dev server stops taking
+`Intl` away and the build stops objecting to it.
 
 ## Addresses
 
