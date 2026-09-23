@@ -1,0 +1,6 @@
+{
+  "app": "contact-form",
+  "function": "root",
+  "entry": "src/index.ts",
+  "opens_host": ["SUPABASE_URL"]
+}
