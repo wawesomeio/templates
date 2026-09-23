@@ -65,7 +65,7 @@ export function renderPage({ values = {}, errors = {}, notice }: PageState = {})
     <main>
       <h1>Talk to us about your garden</h1>
       <p>Tell us a little about the space and what you would like from it. We reply to every message ourselves.</p>
-${notice ? `      <p class="notice" role="status">${escape(notices[notice])}</p>\n` : ""}${
+${notice ? `      <p class="notice" role="status" tabindex="-1" autofocus>${escape(notices[notice])}</p>\n` : ""}${
     failed.length
       ? `      <div class="summary" role="alert">
         <h2>There is a problem</h2>

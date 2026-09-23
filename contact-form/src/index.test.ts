@@ -71,7 +71,7 @@ describe("the page", () => {
   });
 
   it("thanks the visitor after a message is sent", async () => {
-    expect(await (await call("/?sent")).text()).toContain('role="status">Thank you.');
+    expect(await (await call("/?sent")).text()).toContain('role="status" tabindex="-1" autofocus>Thank you.');
   });
 
   it("never carries the key", async () => {

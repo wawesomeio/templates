@@ -11,13 +11,10 @@ export function databaseFrom(env: Record<string, string | undefined>): Database 
   return url && key ? { url, key } : null;
 }
 
-/**
- * Plain `fetch` against the table's REST address rather than `@supabase/supabase-js`,
- * which carries a realtime client this runtime has no `WebSocket` for.
- */
 export async function saveEnquiry(database: Database, enquiry: Enquiry): Promise<boolean> {
   let response: Response;
   try {
+    // Not `@supabase/supabase-js`: it carries a realtime client, and this runtime has no `WebSocket`.
     response = await fetch(`${database.url}/rest/v1/enquiries`, {
       method: "POST",
       headers: {

@@ -2,7 +2,7 @@
   "$schema": "../template.schema.json",
   "name": "contact-form",
   "title": "Contact Form",
-  "description": "A contact form whose messages land as rows in your own Supabase table — validated on the server, working without JavaScript, and holding no secret at all.",
+  "description": "A contact form whose messages land as rows in your own Supabase table — validated on the server, working without JavaScript, and with no secret to keep.",
   "tags": ["form", "contact", "database", "supabase", "website", "typescript"],
   "ref": "contact-form",
   "env": [

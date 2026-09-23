@@ -1,3 +1,5 @@
+// schema.sql holds the same lengths, so a row written straight to the table
+// past this check still cannot be longer.
 export const limits = {
   name: 200,
   email: 320,
@@ -12,7 +14,7 @@ export type Enquiry = Record<Field, string>;
 
 export type Errors = Partial<Record<Field, string>>;
 
-export type Read = { enquiry: Enquiry } | { errors: Errors; values: Partial<Enquiry> };
+export type Submission = { enquiry: Enquiry } | { errors: Errors; values: Partial<Enquiry> };
 
 const labels: Record<Field, string> = {
   name: "your name",
@@ -20,11 +22,7 @@ const labels: Record<Field, string> = {
   message: "a message",
 };
 
-/**
- * `schema.sql` holds the same lengths, so a row written straight to the table
- * past this check still cannot be longer.
- */
-export function readEnquiry(submitted: Record<string, unknown>): Read {
+export function readEnquiry(submitted: Record<string, unknown>): Submission {
   const values: Partial<Enquiry> = {};
   const errors: Errors = {};
 
