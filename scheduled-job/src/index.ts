@@ -50,7 +50,17 @@ export default {
     console.log(`[scheduled-job] Starting scheduled run (trigger=${trigger})...`);
 
     // 2. Perform the scheduled task (health-check probe).
-    const targetUrl = process.env.TARGET_URL || "https://httpbin.org/status/200";
+    // No fallback address: only the host named in TARGET_URL is open to this App.
+    const targetUrl = process.env.TARGET_URL;
+    if (!targetUrl) {
+      console.error(
+        "[scheduled-job] ✗ TARGET_URL is not set, so there is nothing to check. Set it with: npx wawesome env set TARGET_URL https://...",
+      );
+      return new Response(JSON.stringify({ error: "TARGET_URL is not set" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     const result = await checkEndpoint(targetUrl);
 
     // 3. Log results. Structured logs are the primary output channel for background runs.

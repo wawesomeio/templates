@@ -17,11 +17,19 @@ if (!address) {
 
 const jobSecret = `jobsec_${randomBytes(24).toString("hex")}`;
 
+function setVariable(...args) {
+  execFileSync("npx", ["--yes", "wawesome@latest", "env", "set", ...args], {
+    cwd: "scheduled-job",
+    stdio: "inherit",
+  });
+}
+
 console.log("→ storing the job secret on the App");
-execFileSync("npx", ["--yes", "wawesome@latest", "env", "set", "JOB_SECRET", jobSecret, "--secret"], {
-  cwd: "scheduled-job",
-  stdio: "inherit",
-});
+setVariable("JOB_SECRET", jobSecret, "--secret");
+
+// Without a target every run is a 500. The probe's own result never changes the 204.
+console.log("→ naming the host the job checks");
+setVariable("TARGET_URL", "https://httpbin.org/status/200");
 
 async function call(headers = {}) {
   const response = await fetch(address, {
