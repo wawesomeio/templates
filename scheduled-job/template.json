@@ -8,10 +8,11 @@
   "env": [
     {
       "key": "TARGET_URL",
-      "required": false,
+      "required": true,
       "secret": false,
-      "description": "The URL to monitor and health-check on each scheduled run. Defaults to https://httpbin.org/status/200 if not set.",
-      "where_to_find": "The address of the service or endpoint you want to health-check."
+      "opens_host": true,
+      "description": "The https:// address the job checks on each run, e.g. https://httpbin.org/status/200 to try it out. Setting it opens that one host to your App's outbound calls. Left blank, every run fails and logs that it has nothing to check.",
+      "where_to_find": "The health or status endpoint of the service you want to watch."
     },
     {
       "key": "JOB_SECRET",
@@ -22,5 +23,5 @@
     }
   ],
   "providers": [],
-  "post_deploy": "Your scheduled job is deployed!\n\nThis Function is private and runs on a recurring Schedule.\n\nNext steps:\n  1. View your active schedules and next run times:\n       wawesome cron list\n  2. Follow execution logs in real time as scheduled runs fire:\n       wawesome logs --follow\n  3. Manually trigger a run without waiting for the next timer tick:\n       wawesome invoke\n  4. Pause or resume the schedule at any time:\n       wawesome cron pause health-check\n       wawesome cron resume health-check"
+  "post_deploy": "Your scheduled job is deployed!\n\nThis Function is private and runs on a recurring Schedule.\n\nNext steps:\n  1. If you left TARGET_URL blank, set it. Its host is opened to your App as well:\n       wawesome env set TARGET_URL https://...\n  2. View your active schedules and next run times:\n       wawesome cron list\n  3. Follow execution logs in real time as scheduled runs fire:\n       wawesome logs --follow\n  4. Manually trigger a run without waiting for the next timer tick:\n       wawesome invoke\n  5. Pause or resume the schedule at any time:\n       wawesome cron pause health-check\n       wawesome cron resume health-check"
 }

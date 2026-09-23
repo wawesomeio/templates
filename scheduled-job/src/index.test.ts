@@ -6,7 +6,7 @@ describe("scheduled-job handler", () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnv, TARGET_URL: "https://status.example.com/health" };
     globalThis.fetch = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
   });
 
@@ -70,6 +70,40 @@ describe("scheduled-job handler", () => {
   });
 
   describe("fetch", () => {
+    it("checks the TARGET_URL it was given", async () => {
+      vi.spyOn(console, "log").mockImplementation(() => {});
+
+      const req = new Request("http://localhost/", {
+        headers: { "x-wawesome-trigger": "schedule" },
+      });
+      await handler.fetch(req);
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "https://status.example.com/health",
+        expect.anything(),
+      );
+
+      vi.restoreAllMocks();
+    });
+
+    it("reaches no host and fails the run when TARGET_URL is not set", async () => {
+      delete process.env.TARGET_URL;
+      vi.spyOn(console, "log").mockImplementation(() => {});
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const req = new Request("http://localhost/", {
+        headers: { "x-wawesome-trigger": "schedule" },
+      });
+      const res = await handler.fetch(req);
+
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ error: "TARGET_URL is not set" });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("wawesome env set TARGET_URL"));
+
+      vi.restoreAllMocks();
+    });
+
     it("executes scheduled run and returns 204", async () => {
       const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
 

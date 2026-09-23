@@ -3,6 +3,7 @@
   "function": "health-check",
   "entry": "src/index.ts",
   "visibility": "private",
+  "opens_host": ["TARGET_URL"],
   "schedules": [
     {
       "name": "health-check",

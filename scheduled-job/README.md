@@ -20,7 +20,13 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-Once deployed, your scheduled job is active.
+Then tell it what to check. Until you do, every run fails and logs that it has nothing to check:
+
+```bash
+npx wawesome env set TARGET_URL https://httpbin.org/status/200
+```
+
+Use your own service's health endpoint in place of `httpbin.org`. `npx wawesome init --template scheduled-job` asks for the same value.
 
 ```bash
 # View active schedules and when the job next fires
@@ -45,6 +51,7 @@ In [`wawesome-function.json`](wawesome-function.json):
   "function": "health-check",
   "entry": "src/index.ts",
   "visibility": "private",
+  "opens_host": ["TARGET_URL"],
   "schedules": [
     {
       "name": "health-check",
@@ -94,7 +101,13 @@ export function isAuthorizedTrigger(request: Request): boolean {
 
 This lets the Function keep its own authorization checks for direct HTTP requests while allowing scheduled runs to execute cleanly.
 
-### 4. Logging as the output channel
+### 4. The host it calls
+
+A Function can call only the hosts its App allows. `TARGET_URL` is listed under `opens_host`, so when you set it, during `init` or with `wawesome env set`, the CLI adds the host in that address to your App's allowlist. Only that host is opened, and only over HTTPS on the default port.
+
+The allowlist follows the value you give, not the code. If you later change the code to call another host, that host is not opened, and those calls are refused. Open it under **Egress** in the [dashboard](https://dashboard.wawesome.io); [the egress docs](https://wawesome.io/docs/egress) walk through it.
+
+### 5. Logging as the output channel
 
 Because background runs do not face a caller, structured logs (`console.log` / `console.error`) are the primary output channel. Watch runs in real time:
 
@@ -117,10 +130,8 @@ npx wawesome cron resume health-check
 
 ## Configuration
 
-Set optional environment variables:
-
 ```bash
-# Change the target URL to monitor
+# Point the job at another endpoint. Its host is opened too.
 npx wawesome env set TARGET_URL https://api.mycompany.com/health
 
 # Protect direct manual HTTP requests with a secret
