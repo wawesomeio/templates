@@ -15,6 +15,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | [`page-and-api`](page-and-api) | A landing page and the endpoint its form posts to, in one deploy — the pages are files the platform serves, the answer comes from a handler beside them, at the same address |
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
+| [`contact-form`](contact-form) | A contact form whose messages land as rows in your own Supabase table, reached over plain `fetch` with a key that can insert and nothing else |
 | [`rest-api`](rest-api) | A collection, its items and a nested collection, served across several HTTP methods by one Function |
 | [`react-ssr`](react-ssr) | A React application rendered on the server and streamed to the browser, with its assets resolving under every address the App answers at |
 | [`scheduled-job`](scheduled-job) | A scheduled background job that runs on a recurring timer — private visibility, a Schedule block, trigger verification, and structured logging |

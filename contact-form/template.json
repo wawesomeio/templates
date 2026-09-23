@@ -1,0 +1,27 @@
+{
+  "$schema": "../template.schema.json",
+  "name": "contact-form",
+  "title": "Contact Form",
+  "description": "A contact form whose messages land as rows in your own Supabase table — validated on the server, working without JavaScript, and holding no secret at all.",
+  "tags": ["form", "contact", "database", "supabase", "website", "typescript"],
+  "ref": "contact-form",
+  "env": [
+    {
+      "key": "SUPABASE_URL",
+      "required": true,
+      "secret": false,
+      "opens_host": true,
+      "description": "Your Supabase project's URL, e.g. https://abcdefghijklmnop.supabase.co. Setting it opens that one host to your App's outbound calls. Leave it blank to deploy first: the form then answers that it has no database yet.",
+      "where_to_find": "Supabase → your project → Project Settings → Data API → Project URL. The Connect button at the top of the project shows it too."
+    },
+    {
+      "key": "SUPABASE_PUBLISHABLE_KEY",
+      "required": true,
+      "secret": false,
+      "description": "The key the Function writes with. With the policy in schema.sql it can insert a row and cannot read one back.",
+      "where_to_find": "Supabase → your project → Project Settings → API Keys → Publishable key. It starts with sb_publishable_. It is not marked secret because Supabase designs it to be public: what limits it is the insert-only policy in schema.sql, not keeping it hidden. Never put the secret key (sb_secret_) here. It skips every policy and can read and delete every row."
+    }
+  ],
+  "providers": [],
+  "post_deploy": "Your contact form is live at {{url}}\n\nIf you left the two Supabase values blank, the form has no database yet, and a\nmessage sent now is answered with a note saying so. To make it keep messages, in\nthis order:\n  1. Create a project at https://supabase.com/dashboard.\n  2. Open its SQL Editor, paste in schema.sql from this project, and run it. That\n     creates the enquiries table and a policy that lets the publishable key\n     insert rows and nothing else.\n  3. Set the project URL (Project Settings → Data API). This also opens that one\n     host to your App's outbound calls:\n       wawesome env set SUPABASE_URL https://<project-ref>.supabase.co\n  4. Set the publishable key (Project Settings → API Keys). It is not a secret,\n     because the policy is what limits it, so no --secret:\n       wawesome env set SUPABASE_PUBLISHABLE_KEY sb_publishable_...\n  5. Send a message from {{url}}, then open Table Editor → enquiries in Supabase.\n     The row is there.\n\nThen:\n  - The words and fields are in src/page.ts; the rules are in src/enquiry.ts.\n  - Watch submissions, and any refusal from Supabase, as they happen:\n      wawesome logs --follow\n  - Spam protection and rate limiting are yours to add. The README says what the\n    policy does and does not protect."
+}
