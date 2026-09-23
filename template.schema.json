@@ -55,6 +55,10 @@
             "description": "Where in the third-party's own dashboard the value is, so the user does not have to search their documentation.",
             "type": "string",
             "minLength": 1
+          },
+          "opens_host": {
+            "description": "The value names a host the Function calls. Setting it adds that host, and no port, to the App's egress allowlist. The value must be an https:// address. Absent means no.",
+            "type": "boolean"
           }
         }
       }
