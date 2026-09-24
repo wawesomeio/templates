@@ -2,10 +2,27 @@
   "$schema": "../template.schema.json",
   "name": "rest-api",
   "title": "REST API",
-  "description": "A collection, its items and a nested collection, served across several HTTP methods by a single Function — routing on the path, at one version, rolled back as one unit.",
-  "tags": ["rest", "api", "routing", "crud", "http", "typescript"],
+  "description": "A REST API built with Hono and zod whose customers and orders live in your own Supabase tables — one Function, six routes, rolled back as one unit.",
+  "tags": ["rest", "api", "hono", "zod", "crud", "database", "supabase", "typescript"],
   "ref": "rest-api",
-  "env": [],
+  "env": [
+    {
+      "key": "SUPABASE_URL",
+      "required": true,
+      "secret": false,
+      "opens_host": true,
+      "description": "Your Supabase project's URL, e.g. https://abcdefghijklmnop.supabase.co. Setting it opens that one host to your App's outbound calls. Leave it blank to deploy first: every route then answers 503 until it is set.",
+      "where_to_find": "Supabase → your project → Project Settings → Data API → Project URL. The Connect button at the top of the project shows it too."
+    },
+    {
+      "key": "SUPABASE_KEY",
+      "required": true,
+      "secret": true,
+      "description": "The key the Function reads and writes with. It must be the secret key: schema.sql turns on row-level security with no policy, so the publishable key can do nothing.",
+      "where_to_find": "Supabase → your project → Project Settings → API Keys → Secret keys. It starts with sb_secret_. Keep it on the server: it skips every policy."
+    }
+  ],
   "providers": [],
-  "post_deploy": "Your API is live at {{url}}\n\nEvery path beneath that address reaches this one Function, which routes it itself:\n  curl {{url}}\n  curl {{url}}/cus_amelia\n  curl {{url}}/cus_amelia/orders\n  curl -X POST {{url}} -H 'Content-Type: application/json' -d '{\"name\":\"Nadia Petrova\",\"email\":\"nadia@example.com\"}'\n  curl {{url}}/nothing-here     # the Function's own 404\n\nThen:\n  1. Open src/store.ts — it serves fixture data and its writes are no-ops. That\n     is the one file to replace with your database; the routes above do not change.\n     For writes that persist, see: npx wawesome init --template contact-form\n  2. Add or rename a route in the table at the top of src/index.ts.\n  3. Watch requests land as they happen:\n       wawesome logs --follow\n  4. Shipped a bad route? Roll the Function back — the whole resource moves\n     together, because it is one Function at one version."
+  "bundle_budget_bytes": 131072,
+  "post_deploy": "Your API is live at {{url}}\n\nIf you left the two Supabase values blank, every route answers 503 for now. To\nconnect it, in this order:\n  1. Create a project at https://supabase.com/dashboard.\n  2. Open its SQL Editor, paste in schema.sql from this project, and run it. That\n     creates the customers and orders tables, and one customer to start with.\n  3. Set the project URL (Project Settings → Data API). This also opens that one\n     host to your App's outbound calls:\n       wawesome env set SUPABASE_URL https://<project-ref>.supabase.co\n  4. Set the secret key (Project Settings → API Keys):\n       wawesome env set SUPABASE_KEY sb_secret_... --secret\n\nThen try it:\n  curl {{url}}\n  curl -X POST {{url}} -H 'Content-Type: application/json' -d '{\"name\":\"Nadia Petrova\",\"email\":\"nadia@example.com\"}'\n  curl {{url}}/<id>/orders\n\nNext:\n  - The routes are in src/index.ts. The shape of a customer is the zod schema at\n    the top of it.\n  - Watch requests land as they happen:\n      wawesome logs --follow\n  - Every route is public. Authentication is yours to add."
 }
