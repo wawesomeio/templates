@@ -1,0 +1,74 @@
+:root {
+  color-scheme: light dark;
+  --ink: light-dark(#16181d, #e8eaf0);
+  --muted: light-dark(#5c6270, #9aa1b1);
+  --rule: light-dark(#e2e5ec, #2a2e38);
+  --page: light-dark(#f6f7f9, #101216);
+  --accent: light-dark(#3346d3, #8b98ff);
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem 4rem;
+}
+
+h1 {
+  margin: 0 0 1rem;
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  margin: 2.5rem 0 0.75rem;
+  font-size: 1rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.books {
+  padding: 0;
+  list-style: none;
+}
+
+.books li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.suggest {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.suggest input {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+}
+
+.suggest button {
+  padding: 0.45rem 1rem;
+  font: inherit;
+}
+
+.notice {
+  color: var(--accent);
+}
+
+.error {
+  color: light-dark(#b42318, #ff8a80);
+}

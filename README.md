@@ -16,7 +16,7 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
 | [`contact-form`](contact-form) | A static contact page and one Hono route at the same address, saving each message to your own Supabase table with a key that can insert and nothing else |
 | [`rest-api`](rest-api) | A REST API built with Hono and zod, whose customers and orders live in your own Supabase tables |
-| [`react-ssr`](react-ssr) | A React application rendered on the server and streamed to the browser, with its assets resolving under every address the App answers at |
+| [`react-ssr`](react-ssr) | A React Router v7 app rendered on the server, with a loader, a detail page and a form action |
 | [`scheduled-job`](scheduled-job) | A scheduled background job that runs on a recurring timer — private visibility, a Schedule block, trigger verification, and structured logging |
 
 ## Using a template
