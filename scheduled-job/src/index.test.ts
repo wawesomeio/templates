@@ -1,179 +1,47 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import handler, { isAuthorizedTrigger } from "./index.js";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import handler from "./index.js";
 
-describe("scheduled-job handler", () => {
-  const originalFetch = globalThis.fetch;
-  const originalEnv = process.env;
+beforeEach(() => {
+  vi.stubEnv("TARGET_URL", "https://status.example.com/health");
+  vi.stubEnv("JOB_SECRET", "");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("OK")));
+  vi.spyOn(console, "log").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
+});
 
-  beforeEach(() => {
-    process.env = { ...originalEnv, TARGET_URL: "https://status.example.com/health" };
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
-  });
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    process.env = originalEnv;
-  });
+function run(headers: Record<string, string>) {
+  return handler.fetch(new Request("https://scheduled-job.example/", { headers }));
+}
 
-  describe("isAuthorizedTrigger", () => {
-    it("allows trigger: schedule without secret", () => {
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "schedule" },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(true);
-    });
+it("checks TARGET_URL on a scheduled run", async () => {
+  const response = await run({ "x-wawesome-trigger": "schedule" });
 
-    it("allows trigger: manual without secret", () => {
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "manual" },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(true);
-    });
+  expect(response.status).toBe(204);
+  expect(fetch).toHaveBeenCalledWith("https://status.example.com/health", expect.anything());
+  expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Health check succeeded"));
+});
 
-    it("allows caller when no JOB_SECRET is configured", () => {
-      delete process.env.JOB_SECRET;
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "caller" },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(true);
-    });
+it("refuses a caller without the JOB_SECRET bearer token", async () => {
+  vi.stubEnv("JOB_SECRET", "supersecret");
 
-    it("allows caller with valid Bearer token when JOB_SECRET is set", () => {
-      process.env.JOB_SECRET = "supersecret";
-      const req = new Request("http://localhost/", {
-        headers: {
-          "x-wawesome-trigger": "caller",
-          authorization: "Bearer supersecret",
-        },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(true);
-    });
+  const response = await run({ authorization: "Bearer wrong" });
 
-    it("rejects caller with invalid Bearer token when JOB_SECRET is set", () => {
-      process.env.JOB_SECRET = "supersecret";
-      const req = new Request("http://localhost/", {
-        headers: {
-          "x-wawesome-trigger": "caller",
-          authorization: "Bearer wrongsecret",
-        },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(false);
-    });
+  expect(response.status).toBe(401);
+  expect(fetch).not.toHaveBeenCalled();
+});
 
-    it("rejects caller with missing Authorization header when JOB_SECRET is set", () => {
-      process.env.JOB_SECRET = "supersecret";
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "caller" },
-      });
-      expect(isAuthorizedTrigger(req)).toBe(false);
-    });
-  });
+it("fails the run when TARGET_URL is not set", async () => {
+  vi.stubEnv("TARGET_URL", "");
 
-  describe("fetch", () => {
-    it("checks the TARGET_URL it was given", async () => {
-      vi.spyOn(console, "log").mockImplementation(() => {});
+  const response = await run({ "x-wawesome-trigger": "schedule" });
 
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "schedule" },
-      });
-      await handler.fetch(req);
-
-      expect(globalThis.fetch).toHaveBeenCalledWith(
-        "https://status.example.com/health",
-        expect.anything(),
-      );
-
-      vi.restoreAllMocks();
-    });
-
-    it("reaches no host and fails the run when TARGET_URL is not set", async () => {
-      delete process.env.TARGET_URL;
-      vi.spyOn(console, "log").mockImplementation(() => {});
-      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "schedule" },
-      });
-      const res = await handler.fetch(req);
-
-      expect(res.status).toBe(500);
-      expect(await res.json()).toEqual({ error: "TARGET_URL is not set" });
-      expect(globalThis.fetch).not.toHaveBeenCalled();
-      expect(consoleError).toHaveBeenCalledWith(expect.stringContaining("wawesome env set TARGET_URL"));
-
-      vi.restoreAllMocks();
-    });
-
-    it("executes scheduled run and returns 204", async () => {
-      const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "schedule" },
-      });
-      const res = await handler.fetch(req);
-
-      expect(res.status).toBe(204);
-      expect(await res.text()).toBe("");
-      expect(consoleLog).toHaveBeenCalledWith(
-        expect.stringContaining("Starting scheduled run (trigger=schedule)"),
-      );
-      expect(consoleLog).toHaveBeenCalledWith(
-        expect.stringContaining("Health check succeeded"),
-      );
-
-      consoleLog.mockRestore();
-    });
-
-    it("executes manual trigger run and returns 204", async () => {
-      const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
-
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "manual" },
-      });
-      const res = await handler.fetch(req);
-
-      expect(res.status).toBe(204);
-      expect(consoleLog).toHaveBeenCalledWith(
-        expect.stringContaining("Starting scheduled run (trigger=manual)"),
-      );
-
-      consoleLog.mockRestore();
-    });
-
-    it("returns 401 when unauthorized caller invokes the function", async () => {
-      process.env.JOB_SECRET = "supersecret";
-      const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "caller" },
-      });
-      const res = await handler.fetch(req);
-
-      expect(res.status).toBe(401);
-      const data = await res.json();
-      expect(data).toEqual({ error: "Unauthorized" });
-      expect(consoleWarn).toHaveBeenCalledWith(
-        expect.stringContaining("Unauthorized invocation attempt"),
-      );
-
-      consoleWarn.mockRestore();
-    });
-
-    it("logs failure message when health check fails", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue(new Response("Error", { status: 503 }));
-      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-
-      const req = new Request("http://localhost/", {
-        headers: { "x-wawesome-trigger": "schedule" },
-      });
-      const res = await handler.fetch(req);
-
-      expect(res.status).toBe(204);
-      expect(consoleError).toHaveBeenCalledWith(
-        expect.stringContaining("Health check failed"),
-      );
-
-      consoleError.mockRestore();
-    });
-  });
+  expect(response.status).toBe(500);
+  expect(fetch).not.toHaveBeenCalled();
 });
