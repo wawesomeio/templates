@@ -5,6 +5,7 @@
   "description": "A Stripe webhook endpoint with signature verification already wired, so you are not implementing security-critical code from a blog post.",
   "tags": ["stripe", "webhook", "payments", "typescript"],
   "ref": "stripe-webhook",
+  "bundle_budget_bytes": 262144,
   "env": [
     {
       "key": "STRIPE_WEBHOOK_SECRET",
