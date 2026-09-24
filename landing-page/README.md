@@ -1,7 +1,7 @@
 # Landing Page
 
-A one-page website for a small business — headline, three sections, contact
-details — returned by a single Function.
+A one-page website for a small business, returned by a single Function: a
+headline, three sections and contact details.
 
 One file. No build step, no bundler, no files uploaded alongside it. What you
 read in `src/index.js` is exactly what a visitor's browser receives.
@@ -20,25 +20,23 @@ somebody.
 ## Why this page is one file
 
 A page here does not have to be a Function. A deploy can carry `index.html` as a
-file beside the code and the platform serves it straight from storage, which is
-what [`page-and-api`](https://github.com/wawesomeio/templates/tree/main/page-and-api)
-does. If you would rather write your site as HTML, start there instead.
+file beside the code, and the platform serves it from storage.
+If you would rather write your site as HTML,
+[Documents](https://wawesome.io/docs/documents) shows how.
 
-This template returns the markup from a handler because that leaves it with
-nothing else to carry. No build output to hash, no file to declare in the
-deploy, no `dist/` to keep in step with a source tree. The whole site is one
-JavaScript module whose `fetch` handler returns a string. It is small enough to
-paste, which means an agent holding no terminal can deploy it as easily as you
-can.
+This template returns the markup from a handler, so it has nothing else to carry:
+no build output, no file to declare in the deploy, no `dist/` to keep in step. The
+whole site is one JavaScript module with no imports, and there is no compile
+step. It is small enough to paste, so an
+agent with no terminal can deploy it as easily as you can.
 
-The same reasoning covers what the page references. A stylesheet or an image
-would be one more file to declare and keep in step, so the styles are inline in
-the markup instead. If you want client-side behaviour, reach for a module the
-visitor's browser loads from a CDN rather than for a bundler you do not have.
+The styles are inline for the same reason. A stylesheet or an image would be one
+more file to declare. If you want client-side behaviour, load a module from a CDN
+in a `<script type="module">` rather than adding a bundler.
 
 ## Changing the words
 
-They are all in one place — the `site` object at the top of
+They are all in one place, the `site` object at the top of
 [`src/index.js`](src/index.js):
 
 ```js
@@ -71,17 +69,16 @@ Function returns, so nothing puts it back.
 ## What answers where
 
 The Function owns every path beneath its address, and this one serves the same
-page at all of them — a visitor who types a trailing segment gets the site
+page at all of them. A visitor who types a trailing segment gets the site
 rather than a 404. `GET` and `HEAD` are answered; anything else comes back
 `405` with an `Allow` header.
 
 ## Tests
 
 ```bash
-npm test        # vitest, against the JavaScript your Function actually gets
+npm test
 npm run typecheck
 ```
 
-The suite drives the handler the way the platform does: a `Request` in, a
-`Response` out. It holds the two claims this template makes — that the response
-carries no reference to a file, and that the attribution is a single line.
+The tests call the handler the way the platform does: a `Request` in, a
+`Response` out. Keep them as a pattern for your own, or delete them.

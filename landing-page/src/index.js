@@ -1,21 +1,3 @@
-/**
- * A landing page, served by one Function.
- *
- * This template is the shape rather than the content. A deploy here can carry
- * pages as files beside the code, which is what `page-and-api` does. This one
- * carries nothing at all. The whole project is one file with no imports,
- * deployable exactly as it reads here, whether it goes up through
- * `wawesome deploy` or is handed to the platform as one string by an agent
- * holding no terminal.
- *
- * Written in JavaScript on purpose. A build step would put a bundler between
- * what you read and what runs, and there is nothing here that needs one.
- *
- * The words are in `site` below. Replace every one of them: this studio does not
- * exist, and the copy is here so the page looks like something before you have
- * written anything.
- */
-
 const site = {
   name: "Fernwood Ceramics",
   tagline: "Hand-thrown stoneware, made to be used every day",
@@ -44,10 +26,7 @@ const site = {
 };
 
 export default {
-  /**
-   * @param {Request} request
-   * @returns {Promise<Response>}
-   */
+  /** @param {Request} request */
   async fetch(request) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("This page only answers GET.", {
@@ -56,20 +35,12 @@ export default {
       });
     }
 
-    // Every path beneath the mount, not only the root: a one-page site that
-    // 404s on a trailing slash somebody typed is a page nobody can share.
     return new Response(request.method === "HEAD" ? null : page(), {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   },
 };
 
-/**
- * The whole document. The attribution line in the footer is yours to delete —
- * the platform injects nothing into what this returns, so nothing puts it back.
- *
- * @returns {string}
- */
 function page() {
   return `<!doctype html>
 <html lang="en">
@@ -107,10 +78,7 @@ function page() {
 `;
 }
 
-/**
- * @param {(typeof site)["sections"][number]} section
- * @returns {string}
- */
+/** @param {(typeof site)["sections"][number]} section */
 function card(section) {
   return `
         <article>
@@ -122,23 +90,11 @@ function card(section) {
 /** @type {Record<string, string>} */
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
-/**
- * Text into markup. Worth having even though every word above is yours: a
- * business called "Fern & Co" writes a broken page without it.
- *
- * @param {string} value
- * @returns {string}
- */
-export function escapeHtml(value) {
+/** @param {string} value */
+function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (character) => ESCAPES[character]);
 }
 
-/**
- * One stylesheet, inline. A separate `.css` file would be another file in the
- * deploy and a second thing to keep in step with this one.
- *
- * @returns {string}
- */
 function styles() {
   return `
       :root {

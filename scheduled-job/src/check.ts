@@ -6,9 +6,6 @@ export interface HealthCheckResult {
   error?: string;
 }
 
-/**
- * Ping an endpoint to verify its availability and measure latency.
- */
 export async function checkEndpoint(url: string): Promise<HealthCheckResult> {
   const start = Date.now();
   try {
