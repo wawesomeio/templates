@@ -1,227 +1,183 @@
-import { describe, expect, it } from "vitest";
-import handler from "./index.js";
-import { FORWARDED_PREFIX_HEADER } from "./public-url.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import app from "./index.js";
 
-const ORIGIN = "https://api.wawesome.io";
+const AMELIA = {
+  id: "7f3c2a1e-4b5d-4c6e-8f90-1a2b3c4d5e6f",
+  name: "Amelia Okonkwo",
+  email: "amelia@example.com",
+  created_at: "2026-09-01T09:14:00Z",
+};
+const MISSING = "00000000-0000-4000-8000-000000000000";
 
-/**
- * The mount this Function is deployed at.
- *
- * The platform strips it before the request arrives, so every path below is
- * written the way the Function actually observes it — `/` is the Function's own
- * address, not the gateway's root.
- */
-const MOUNT = "/x/acme/rest-api/customers";
+let supabase: ReturnType<typeof vi.fn>;
 
-const SEEDED = "cus_amelia";
-const MISSING = "cus_nobody";
-
-function call(
-  method: string,
-  path: string,
-  { body, contentType = "application/json", prefix = MOUNT as string | null } = {} as {
-    body?: string;
-    contentType?: string | null;
-    prefix?: string | null;
-  },
-): Promise<Response> {
-  return handler.fetch(
-    new Request(ORIGIN + path, {
-      method,
-      headers: {
-        ...(contentType ? { "Content-Type": contentType } : {}),
-        ...(prefix ? { [FORWARDED_PREFIX_HEADER]: prefix } : {}),
-      },
-      body,
+function answer(status: number, body?: unknown) {
+  supabase.mockResolvedValueOnce(
+    new Response(body === undefined ? null : JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
     }),
   );
 }
 
-const draft = (fields: Record<string, unknown> = {}) =>
-  JSON.stringify({ name: "Nadia Petrova", email: "nadia@example.com", ...fields });
+function call(method: string, path: string, body?: unknown) {
+  return app.fetch(
+    new Request(`https://api.wawesome.io${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "x-wawesome-forwarded-prefix": "/x/acme/rest-api/customers",
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
+}
 
-describe("the collection", () => {
-  it("is served at the Function's own address", async () => {
+function sentToSupabase() {
+  const [url, init] = supabase.mock.calls[0] as [string, RequestInit];
+  return { url, method: init.method ?? "GET", body: init.body ? JSON.parse(String(init.body)) : undefined };
+}
+
+beforeEach(() => {
+  supabase = vi.fn();
+  vi.stubGlobal("fetch", supabase);
+  vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
+  vi.stubEnv("SUPABASE_KEY", "sb_secret_test");
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe("GET /", () => {
+  it("lists the customers", async () => {
+    answer(200, [AMELIA]);
+
     const response = await call("GET", "/");
-    const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.count).toBe(payload.data.length);
-    expect(payload.data.length).toBeGreaterThan(0);
+    expect(await response.json()).toEqual([AMELIA]);
+    expect(sentToSupabase().url).toMatch(/^https:\/\/project\.supabase\.co\/rest\/v1\/customers\?/);
   });
 
-  it("gives every item the address it can be fetched back from", async () => {
-    const payload = await (await call("GET", "/")).json();
-    const [first] = payload.data;
+  it("is a 503 until Supabase is set", async () => {
+    vi.stubEnv("SUPABASE_KEY", "");
 
-    expect(first.self).toBe(`${ORIGIN}${MOUNT}/${first.id}`);
+    const response = await call("GET", "/");
 
-    const followed = await call("GET", `/${first.id}`);
-    expect(followed.status).toBe(200);
-    expect((await followed.json()).id).toBe(first.id);
+    expect(response.status).toBe(503);
+    expect(supabase).not.toHaveBeenCalled();
   });
 });
 
-describe("an item", () => {
-  it("is served one segment beneath the mount", async () => {
-    const response = await call("GET", `/${SEEDED}`);
+describe("POST /", () => {
+  it("creates a customer and answers where to find it", async () => {
+    answer(201, [AMELIA]);
 
-    expect(response.status).toBe(200);
-    expect((await response.json()).id).toBe(SEEDED);
-  });
-
-  it("is a 404 when there is no such customer", async () => {
-    const response = await call("GET", `/${MISSING}`);
-
-    expect(response.status).toBe(404);
-    expect((await response.json()).error).toBe("No such customer.");
-  });
-});
-
-describe("the collection nested under an item", () => {
-  it("is served two segments beneath the mount", async () => {
-    const response = await call("GET", `/${SEEDED}/orders`);
-    const payload = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(payload.data.every((order: { customer_id: string }) => order.customer_id === SEEDED)).toBe(true);
-  });
-
-  it("distinguishes a customer with no orders from no customer at all", async () => {
-    const response = await call("GET", `/${MISSING}/orders`);
-
-    expect(response.status).toBe(404);
-  });
-});
-
-describe("creating one", () => {
-  it("answers 201 with the address the resource would have", async () => {
-    const response = await call("POST", "/", { body: draft() });
-    const created = await response.json();
+    const response = await call("POST", "/", { name: AMELIA.name, email: AMELIA.email });
 
     expect(response.status).toBe(201);
-    expect(created.name).toBe("Nadia Petrova");
-    expect(response.headers.get("Location")).toBe(`${ORIGIN}${MOUNT}/${created.id}`);
+    expect(await response.json()).toEqual(AMELIA);
+    expect(response.headers.get("Location")).toBe(
+      `https://api.wawesome.io/x/acme/rest-api/customers/${AMELIA.id}`,
+    );
+    expect(sentToSupabase()).toMatchObject({ method: "POST", body: { name: AMELIA.name, email: AMELIA.email } });
   });
 
-  it("refuses a draft it cannot store", async () => {
-    expect((await call("POST", "/", { body: draft({ email: "nadia" }) })).status).toBe(400);
-    expect((await call("POST", "/", { body: draft(), contentType: "text/plain" })).status).toBe(415);
+  it("is a 422 naming the field that is wrong", async () => {
+    const response = await call("POST", "/", { name: "Nadia", email: "not-an-address" });
+
+    expect(response.status).toBe(422);
+    expect(Object.keys((await response.json()).errors)).toEqual(["email"]);
+    expect(supabase).not.toHaveBeenCalled();
   });
 });
 
-describe("replacing one", () => {
-  it("answers with the customer as it would then read", async () => {
-    const response = await call("PUT", `/${SEEDED}`, { body: draft() });
-    const replaced = await response.json();
+describe("GET /:id", () => {
+  it("reads one customer", async () => {
+    answer(200, [AMELIA]);
+
+    const response = await call("GET", `/${AMELIA.id}`);
 
     expect(response.status).toBe(200);
-    expect(replaced.id).toBe(SEEDED);
-    expect(replaced.name).toBe("Nadia Petrova");
-  });
-
-  it("round-trips a customer read back from a GET", async () => {
-    const fetched = await (await call("GET", `/${SEEDED}`)).json();
-
-    const response = await call("PUT", `/${SEEDED}`, { body: JSON.stringify(fetched) });
-
-    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(AMELIA);
   });
 
   it("is a 404 when there is no such customer", async () => {
-    expect((await call("PUT", `/${MISSING}`, { body: draft() })).status).toBe(404);
+    answer(200, []);
+
+    expect((await call("GET", `/${MISSING}`)).status).toBe(404);
+  });
+
+  it("is a 404 for an id that is not a uuid, without asking Supabase", async () => {
+    expect((await call("GET", "/cus_amelia")).status).toBe(404);
+    expect(supabase).not.toHaveBeenCalled();
   });
 });
 
-describe("deleting one", () => {
-  it("answers 204 with no body", async () => {
-    const response = await call("DELETE", `/${SEEDED}`);
+describe("PUT /:id", () => {
+  it("replaces a customer", async () => {
+    const replaced = { ...AMELIA, name: "Amelia Okafor" };
+    answer(200, [replaced]);
+
+    const response = await call("PUT", `/${AMELIA.id}`, { name: replaced.name, email: replaced.email });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(replaced);
+    expect(sentToSupabase()).toMatchObject({ method: "PATCH", body: { name: replaced.name } });
+  });
+
+  it("is a 404 when there is no such customer", async () => {
+    answer(200, []);
+
+    expect((await call("PUT", `/${MISSING}`, { name: "Nadia", email: "nadia@example.com" })).status).toBe(404);
+  });
+});
+
+describe("DELETE /:id", () => {
+  it("deletes a customer", async () => {
+    answer(200, [AMELIA]);
+
+    const response = await call("DELETE", `/${AMELIA.id}`);
 
     expect(response.status).toBe(204);
-    expect(await response.text()).toBe("");
+    expect(sentToSupabase().method).toBe("DELETE");
   });
 
   it("is a 404 when there is no such customer", async () => {
+    answer(200, []);
+
     expect((await call("DELETE", `/${MISSING}`)).status).toBe(404);
   });
 });
 
-/**
- * The whole point of the mount: every URL beneath the address reaches this
- * Function, so the ones it does not serve are its own to answer.
- */
-describe("a path the Function does not serve", () => {
-  it("is answered by the Function with its own 404", async () => {
-    for (const path of ["/cus_amelia/invoices", "/a/b/c/d", "/health"]) {
-      const response = await call("GET", path);
+describe("GET /:id/orders", () => {
+  it("lists the customer's orders", async () => {
+    const order = { id: 1, customer_id: AMELIA.id, total_cents: 4250, currency: "EUR", placed_at: "2026-09-02T10:00:00Z" };
+    answer(200, [{ orders: [order] }]);
 
-      expect(response.status, path).toBe(404);
-      expect((await response.json()).error).toBe(path === "/health" ? "No such customer." : "No such resource.");
-    }
-  });
-
-  it("never quotes the path back at the caller", async () => {
-    const response = await call("GET", "/%3Cscript%3Ealert(1)%3C%2Fscript%3E/invoices");
-
-    expect(response.status).toBe(404);
-    expect(await response.text()).not.toContain("script");
-  });
-
-  it("refuses a path that is not valid percent-encoding", async () => {
-    expect((await call("GET", "/cus_%zz")).status).toBe(400);
-  });
-});
-
-describe("a method the path does not serve", () => {
-  it("is a 405 that says what the path does serve", async () => {
-    const response = await call("PATCH", `/${SEEDED}`, { body: draft() });
-
-    expect(response.status).toBe(405);
-    expect(response.headers.get("Allow")).toBe("DELETE, GET, HEAD, OPTIONS, PUT");
-  });
-
-  it("advertises the collection's methods at the collection", async () => {
-    const response = await call("DELETE", "/");
-
-    expect(response.status).toBe(405);
-    expect(response.headers.get("Allow")).toBe("GET, HEAD, OPTIONS, POST");
-  });
-});
-
-describe("the methods a REST client expects to work without being routed", () => {
-  it("answers OPTIONS with what the path allows", async () => {
-    const response = await call("OPTIONS", `/${SEEDED}`);
-
-    expect(response.status).toBe(204);
-    expect(response.headers.get("Allow")).toBe("DELETE, GET, HEAD, OPTIONS, PUT");
-  });
-
-  it("answers HEAD with the GET status and no body", async () => {
-    const found = await call("HEAD", `/${SEEDED}`);
-    expect(found.status).toBe(200);
-    expect(await found.text()).toBe("");
-
-    expect((await call("HEAD", `/${MISSING}`)).status).toBe(404);
-  });
-});
-
-/**
- * A Preview addresses the same code under a different prefix. If any of this
- * were compiled in, a Preview would stop being a rehearsal of production.
- */
-describe("the addressing the Function does not hardcode", () => {
-  it("builds its links from the mount it was actually reached at", async () => {
-    const preview = "/preview/v7/x/acme/rest-api/customers";
-
-    const response = await call("POST", "/", { body: draft(), prefix: preview });
-    const created = await response.json();
-
-    expect(response.headers.get("Location")).toBe(`${ORIGIN}${preview}/${created.id}`);
-  });
-
-  it("routes on the same paths whatever the mount is", async () => {
-    const response = await call("GET", `/${SEEDED}`, { prefix: "/somewhere/else/entirely" });
+    const response = await call("GET", `/${AMELIA.id}/orders`);
 
     expect(response.status).toBe(200);
+    expect(await response.json()).toEqual([order]);
+  });
+
+  it("is a 404 when there is no such customer", async () => {
+    answer(200, []);
+
+    expect((await call("GET", `/${MISSING}/orders`)).status).toBe(404);
+  });
+});
+
+describe("when Supabase refuses", () => {
+  it("is a 502, and the reason goes to the logs", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    answer(401, { message: "Invalid API key" });
+
+    const response = await call("GET", "/");
+
+    expect(response.status).toBe(502);
+    expect(log.mock.calls.join(" ")).toContain("Invalid API key");
   });
 });

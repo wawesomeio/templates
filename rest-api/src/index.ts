@@ -1,176 +1,96 @@
-import { matchRoute, type Params, type Route } from "./router.js";
-import { callerUrl, resourceUrl } from "./public-url.js";
-import {
-  createCustomer,
-  deleteCustomer,
-  findCustomer,
-  listCustomers,
-  listOrders,
-  replaceCustomer,
-  type Customer,
-} from "./store.js";
-import { parseCustomerDraft } from "./validate.js";
+import { zValidator } from "@hono/zod-validator";
+import { Hono, type Context } from "hono";
+import { HTTPException } from "hono/http-exception";
+import * as z from "zod";
+import { supabaseFrom, type Supabase } from "./supabase.js";
 
-/**
- * A REST resource served by one Function.
- *
- * A Function is mounted at an address and owns everything beneath it, so the
- * collection, every item, and the orders nested under an item are one deploy
- * unit: they ship together, they run at the same version, and rolling them back
- * is one operation. There is no arrangement in which `GET /cus_42` and
- * `PUT /cus_42` are at different versions of what you think of as one endpoint.
- *
- *   GET    /              the collection
- *   POST   /              create one
- *   GET    /:id           read one
- *   PUT    /:id           replace one
- *   DELETE /:id           delete one
- *   GET    /:id/orders    a collection nested under an item
- *
- * Those paths are relative to the mount, which is the only path this Function
- * ever sees — see `router.ts`. Anything beneath the mount that is not on this
- * list reaches the Function too, and the Function answers it with its own 404.
- *
- * The store behind it is a fixture whose writes are no-ops. `store.ts` is the
- * file to replace, and it says so.
- */
+const CustomerDraft = z.object({
+  name: z.string().trim().min(1).max(200),
+  email: z.email().max(320),
+});
 
-type Handler = (request: Request, params: Params) => Promise<Response>;
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  created_at: string;
+}
 
-const ROUTES: Route<Handler>[] = [
-  { method: "GET", pattern: "/", handler: collection },
-  { method: "POST", pattern: "/", handler: create },
-  { method: "GET", pattern: "/:id", handler: read },
-  { method: "PUT", pattern: "/:id", handler: replace },
-  { method: "DELETE", pattern: "/:id", handler: remove },
-  { method: "GET", pattern: "/:id/orders", handler: orders },
-];
+interface Order {
+  id: number;
+  customer_id: string;
+  total_cents: number;
+  currency: string;
+  placed_at: string;
+}
 
-export default {
-  async fetch(request: Request): Promise<Response> {
-    const { pathname } = new URL(request.url);
-    const match = matchRoute(ROUTES, request.method, pathname);
+// Only a uuid reaches PostgREST's filter syntax; anything else is a 404 before it gets there.
+const ITEM = "/:id{[0-9a-fA-F-]{36}}";
 
-    switch (match.outcome) {
-      case "matched": {
-        const response = await match.handler(request, match.params);
-        return request.method === "HEAD" ? withoutBody(response) : response;
-      }
+const customerDraft = zValidator("json", CustomerDraft, (result, c) => {
+  if (!result.success) return c.json({ errors: z.flattenError(result.error).fieldErrors }, 422);
+});
 
-      case "wrong-method": {
-        const allow = allowHeader(match.allow);
-        return request.method === "OPTIONS"
-          ? new Response(null, { status: 204, headers: { Allow: allow } })
-          : problem(405, `This path does not serve ${safeMethodName(request.method)}.`, { Allow: allow });
-      }
+const app = new Hono<{ Variables: { supabase: Supabase } }>();
 
-      case "undecodable":
-        return problem(400, "The request path is not valid percent-encoding.");
+app.use(async (c, next) => {
+  const supabase = supabaseFrom(process.env);
+  if (!supabase) {
+    return c.json({ error: "No database yet: run schema.sql in Supabase, then set SUPABASE_URL and SUPABASE_KEY." }, 503);
+  }
+  c.set("supabase", supabase);
+  await next();
+});
 
-      // Every URL beneath the mount arrives here, so the ones this Function does
-      // not serve are its own to refuse. The path is not quoted back: a public
-      // endpoint that echoes its input is one that reflects a stranger's text.
-      case "unmatched":
-        return problem(404, "No such resource.");
-    }
-  },
-};
+app.get("/", async (c) => {
+  return c.json(await c.var.supabase<Customer[]>("customers?select=*&order=created_at"));
+});
 
-async function collection(request: Request): Promise<Response> {
-  const customers = await listCustomers();
+app.post("/", customerDraft, async (c) => {
+  const [created] = await c.var.supabase<Customer[]>("customers", { method: "POST", body: c.req.valid("json") });
+  return c.json(created, 201, { Location: `${publicUrl(c)}/${created.id}` });
+});
 
-  return Response.json({
-    data: customers.map((customer) => withSelf(request, customer)),
-    count: customers.length,
-    self: callerUrl(request),
+app.get(ITEM, async (c) => {
+  const [customer] = await c.var.supabase<Customer[]>(`customers?id=eq.${c.req.param("id")}&select=*`);
+  return customer ? c.json(customer) : noSuchCustomer(c);
+});
+
+app.put(ITEM, customerDraft, async (c) => {
+  const [replaced] = await c.var.supabase<Customer[]>(`customers?id=eq.${c.req.param("id")}`, {
+    method: "PATCH",
+    body: c.req.valid("json"),
   });
+  return replaced ? c.json(replaced) : noSuchCustomer(c);
+});
+
+app.delete(ITEM, async (c) => {
+  const [deleted] = await c.var.supabase<Customer[]>(`customers?id=eq.${c.req.param("id")}`, { method: "DELETE" });
+  return deleted ? c.body(null, 204) : noSuchCustomer(c);
+});
+
+app.get(`${ITEM}/orders`, async (c) => {
+  const [customer] = await c.var.supabase<{ orders: Order[] }[]>(
+    `customers?id=eq.${c.req.param("id")}&select=orders(*)&orders.order=placed_at.desc`,
+  );
+  return customer ? c.json(customer.orders) : noSuchCustomer(c);
+});
+
+app.notFound((c) => c.json({ error: "Not found." }, 404));
+
+app.onError((err, c) => {
+  if (err instanceof HTTPException) return err.getResponse();
+  console.error(err.message);
+  return c.json({ error: "The database refused the request. The reason is in your logs." }, 502);
+});
+
+function noSuchCustomer(c: Context) {
+  return c.json({ error: "No such customer." }, 404);
 }
 
-async function create(request: Request): Promise<Response> {
-  const draft = parseCustomerDraft(request.headers.get("content-type"), await request.text());
-  if (!draft.ok) return problem(draft.status, draft.error);
-
-  const created = await createCustomer(draft.value);
-
-  // A real `Location`, absolute and built from the mount rather than assumed.
-  // It is the address the resource *would* have, and it will answer 404 until
-  // `store.ts` writes somewhere that outlives the request.
-  return Response.json(withSelf(request, created), {
-    status: 201,
-    headers: { Location: resourceUrl(request, created.id) },
-  });
+function publicUrl(c: Context) {
+  const url = new URL(c.req.url);
+  return url.origin + (c.req.header("x-wawesome-forwarded-prefix") ?? "");
 }
 
-async function read(request: Request, { id }: Params): Promise<Response> {
-  const customer = await findCustomer(id);
-
-  return customer ? Response.json(withSelf(request, customer)) : noSuchCustomer();
-}
-
-async function replace(request: Request, { id }: Params): Promise<Response> {
-  const draft = parseCustomerDraft(request.headers.get("content-type"), await request.text());
-  if (!draft.ok) return problem(draft.status, draft.error);
-
-  const replaced = await replaceCustomer(id, draft.value);
-
-  return replaced ? Response.json(withSelf(request, replaced)) : noSuchCustomer();
-}
-
-async function remove(_request: Request, { id }: Params): Promise<Response> {
-  const deleted = await deleteCustomer(id);
-
-  return deleted ? new Response(null, { status: 204 }) : noSuchCustomer();
-}
-
-async function orders(request: Request, { id }: Params): Promise<Response> {
-  // Checked rather than answered with an empty list: "this customer has no
-  // orders" and "there is no such customer" are different answers, and a client
-  // cannot tell them apart from `[]`.
-  if (!(await findCustomer(id))) return noSuchCustomer();
-
-  const found = await listOrders(id);
-
-  return Response.json({
-    data: found,
-    count: found.length,
-    self: callerUrl(request),
-  });
-}
-
-/** An item, carrying the address it can be fetched back from. */
-function withSelf(request: Request, customer: Customer): Customer & { self: string } {
-  return { ...customer, self: resourceUrl(request, customer.id) };
-}
-
-/**
- * `Allow` as the header actually has to read: the methods registered for the
- * path, plus the two the Function answers without a route of their own.
- */
-function allowHeader(allow: readonly string[]): string {
-  const methods = new Set(allow);
-  if (methods.has("GET")) methods.add("HEAD");
-  methods.add("OPTIONS");
-
-  return [...methods].sort().join(", ");
-}
-
-function noSuchCustomer(): Response {
-  return problem(404, "No such customer.");
-}
-
-function problem(status: number, error: string, headers: Record<string, string> = {}): Response {
-  return Response.json({ error }, { status, headers });
-}
-
-/** Whatever the caller sent, reduced to something safe to echo in a body. */
-function safeMethodName(method: string): string {
-  return /^[A-Za-z]{1,20}$/.test(method) ? method.toUpperCase() : "that method";
-}
-
-function withoutBody(response: Response): Response {
-  return new Response(null, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers,
-  });
-}
+export default app;
