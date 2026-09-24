@@ -72,7 +72,7 @@ const limit = (name) =>
 
 const LIMITS = {
   maxMessages: limit("maxMessages"),
-  maxBodyChars: limit("maxBodyChars"),
+  maxBodyBytes: limit("maxBodyBytes"),
   maxPromptChars: limit("maxPromptChars"),
 };
 console.log(`→ ceilings read from policy.ts: ${JSON.stringify(LIMITS)}`);
@@ -220,7 +220,7 @@ await expect(
 
 await expect(
   "an oversized body is refused",
-  () => call({ body: chat(user("x".repeat(LIMITS.maxBodyChars + 1))) }),
+  () => call({ body: chat(user("x".repeat(LIMITS.maxBodyBytes + 1))) }),
   413,
   "too large",
 );
@@ -242,12 +242,13 @@ await expect(
   "rejected the request",
 );
 
-// The address is a mount, not one route, and the README says so.
+// The address is a mount, not one route: a path beneath it reaches the Function,
+// which answers it with its own 404 rather than the platform's.
 await expect(
   "a path beneath the address reaches the Function too",
   () => call({ path: "/v2/chat" }),
-  502,
-  "rejected the request",
+  404,
+  "its own address only",
 );
 
 // Nothing the endpoint ever says may carry the two things it exists to hide.
