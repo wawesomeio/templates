@@ -238,7 +238,7 @@ await expect(
 await expect(
   "a well-formed request reaches the provider, which rejects the throwaway key",
   () => call(),
-  502,
+  500,
   "rejected the request",
 );
 

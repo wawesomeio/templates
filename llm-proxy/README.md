@@ -198,8 +198,7 @@ Add that provider's host to the App's outbound allowlist first. Until you do, re
 | `405` | A method other than `POST` or the `OPTIONS` preflight |
 | `413` | The body, the history or the text is over a limit |
 | `429` | The provider is rate limiting. Wait and retry |
-| `500` | `OPENAI_API_KEY` isn't set. The response doesn't say which setting is missing |
-| `502` | The provider could not be reached, or refused the request |
+| `500` | `OPENAI_API_KEY` isn't set, or the provider could not be reached or refused the request. The response doesn't say which |
 
 Every status except `200` has a JSON body with one `error` string. No response repeats what the client sent, and none carries the key, the prompt or the provider's own error text.
 

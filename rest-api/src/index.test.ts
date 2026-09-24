@@ -69,6 +69,16 @@ describe("GET /", () => {
     expect(response.status).toBe(503);
     expect(supabase).not.toHaveBeenCalled();
   });
+
+  it("is a 503 naming the secret key when SUPABASE_KEY is the publishable one", async () => {
+    vi.stubEnv("SUPABASE_KEY", "sb_publishable_test");
+
+    const response = await call("GET", "/");
+
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("sb_secret_");
+    expect(supabase).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /", () => {
@@ -171,13 +181,13 @@ describe("GET /:id/orders", () => {
 });
 
 describe("when Supabase refuses", () => {
-  it("is a 502, and the reason goes to the logs", async () => {
+  it("is a 500, and the reason goes to the logs", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     answer(401, { message: "Invalid API key" });
 
     const response = await call("GET", "/");
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(500);
     expect(log.mock.calls.join(" ")).toContain("Invalid API key");
   });
 });

@@ -45,7 +45,7 @@ The route in [`src/index.ts`](src/index.ts) takes a form post or a JSON body at 
 | Saved | `303` to `#sent`, the thank-you note | `201 {"status":"sent"}` |
 | A field is wrong | `422`, a line for each wrong field | `422 {"errors":{"email":["..."]}}` |
 | No database set | `503`, a note naming the next step | `503 {"error":"..."}` |
-| Supabase refused or was unreachable | `502`, the reason in your logs | `502 {"error":"..."}` |
+| Supabase refused or was unreachable | `500`, the reason in your logs | `500 {"error":"..."}` |
 
 The form has no script, so it works with JavaScript turned off. The browser checks each field before it sends, and the route checks again. Because of the `303`, reloading the thank-you note doesn't send the message twice.
 
