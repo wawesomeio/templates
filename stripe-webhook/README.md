@@ -1,36 +1,6 @@
 # Stripe Webhook Receiver
 
-A Stripe webhook endpoint you can deploy in about a minute, with signature
-verification already written and tested.
-
-Your webhook URL is public. Anyone who finds it can POST JSON at it, and a
-forged `payment_intent.succeeded` is worth real money to whoever gets one past
-you. Verifying Stripe's signature is what makes the difference — and it is the
-part people most often copy from a blog post and get subtly wrong.
-
-This template gets it right, and proves it: [`src/stripe-signature.ts`](src/stripe-signature.ts)
-is short enough to read in full before you trust it,
-[`src/stripe-signature.test.ts`](src/stripe-signature.test.ts) covers replay,
-tampering, secret rotation, malformed headers and truncated signatures, and
-[`src/index.test.ts`](src/index.test.ts) drives the endpoint itself with
-signatures made the way Stripe makes them.
-
-## What it does
-
-```
-POST /  ──▶  verify Stripe-Signature  ──▶  200 {"received": true}
-                       │
-                       └── no match ──▶  400
-```
-
-- **Signature verification** — HMAC-SHA256 over `${timestamp}.${rawBody}`,
-  compared in constant time against every signature Stripe offers.
-- **Replay protection** — signed timestamps older than five minutes are refused.
-- **Secret rotation** — Stripe signs with every active secret during a rollover;
-  any one of them matching is enough.
-- **Typed events** — `event.type` narrows `event.data.object` to the right Stripe
-  type, so `session.customer_details.email` autocompletes and misspellings fail
-  to compile.
+A Stripe webhook endpoint. It checks every request's signature with the Stripe SDK, then hands the event to a `switch` where your code goes.
 
 ## Quick start
 
@@ -40,97 +10,75 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-`deploy` prints your endpoint's public address. Paste it into
-**Stripe Dashboard → Developers → Webhooks → Add endpoint**, copy the signing
-secret it gives you back, and store it:
+`deploy` prints your endpoint's address. Add it in **Stripe Dashboard → Developers → Webhooks → Add endpoint**. Stripe then shows the endpoint's signing secret. Store it:
 
 ```bash
 npx wawesome env set STRIPE_WEBHOOK_SECRET whsec_... --secret
 ```
 
-Secrets are encrypted at rest and never readable back — not from the CLI, the
-dashboard, or the API. They are decrypted only for the moment your function runs.
-
-Then send a test event from the Stripe dashboard and watch it land:
+Send a test event from the Stripe dashboard and watch it arrive:
 
 ```bash
 npx wawesome logs --follow
 ```
 
-## The address Stripe posts to
+`npx wawesome init --template stripe-webhook` asks for the same secret. If the endpoint does not exist yet, leave it blank and set it after the first deploy.
+
+## The files
+
+- [`wawesome-function.json`](wawesome-function.json) names the App and the Function. Both are part of your address.
+- [`src/index.ts`](src/index.ts) is the handler. It checks the signature and passes the event to `handleEvent`.
+
+## How it works
+
+### The address
 
 ```
 https://api.wawesome.io/x/<workspace>/stripe-webhook/stripe-events
-                        │      │             │             │
-                        │      │             │             └─ Function slug
-                        │      │             └─ App slug
-                        │      └─ your workspace slug
-                        └─ reserved for invocation, never a management route
 ```
 
-The App and Function slugs come from [`wawesome-function.json`](wawesome-function.json),
-so renaming either renames the address. Do that before the URL reaches Stripe's
-dashboard, since afterwards a rename is an endpoint Stripe can no longer deliver
-to.
+The last two parts are the App and the Function from `wawesome-function.json`. Rename them before you give the address to Stripe. After that, a rename is an address Stripe can no longer reach.
 
-The address is a mount rather than a single route: every path beneath it reaches
-this Function too, which sees the path with the mount stripped off. Stripe posts
-to the address itself, so `handleEvent` runs for a request the Function sees as
-`POST /`.
+The Function also answers every path below that address. Stripe posts to the address itself, so the handler sees `POST /`.
 
-Requests arrive as they were sent: the method, every header including
-`Stripe-Signature`, and the body byte for byte. That last one is what makes
-verification possible at all, since Stripe signs the bytes rather than the JSON.
+### The signature
 
-## Configuration
+The request reaches your code as Stripe sent it: every header, including `Stripe-Signature`, and the body byte for byte. Stripe signs those bytes, so the handler reads the body with `request.text()` and checks it before it parses anything:
 
-| Variable | Required | Where to find it |
-| --- | --- | --- |
-| `STRIPE_WEBHOOK_SECRET` | yes | Dashboard → Developers → Webhooks → your endpoint → *Signing secret* → Reveal (`whsec_…`) |
+```ts
+event = await Stripe.webhooks.constructEventAsync(payload, signature, secret, undefined, cryptoProvider);
+```
 
-Without it the endpoint answers `500` rather than accepting unverified requests —
-an unconfigured webhook fails closed.
+Your Function runs on WebAssembly, not Node, so there is no `node:crypto`. `Stripe.createSubtleCryptoProvider()` makes the SDK use `crypto.subtle`, which the runtime has. That is also why the check is the async one.
 
-[`wawesome-function.json`](wawesome-function.json) names the App and Function this
-deploys to, and both are segments of your public address — see above.
+The SDK refuses a signature that does not match, a missing one, and one older than five minutes. The handler answers all three with `400`.
+
+### The secret
+
+Secrets are encrypted at rest. Nobody can read one back, not from the CLI, the dashboard or the API. Your Function sees it as `process.env.STRIPE_WEBHOOK_SECRET` while it runs.
+
+Without it, the endpoint answers `500` to every request and logs the command that fixes it.
+
+### The bundle
+
+The Stripe SDK is bundled whole, so `dist/index.js` is about 220 KB. `template.json` sets the size CI allows.
 
 ## Adding your own logic
 
-`handleEvent` in [`src/index.ts`](src/index.ts) is where your code goes. Two things
-worth knowing:
+Your code goes in `handleEvent` in [`src/index.ts`](src/index.ts).
 
-**Acknowledge quickly.** Stripe retries anything that is not a 2xx, so return the
-response as soon as the event is safely recorded rather than after slow
-downstream work.
+- **Answer quickly.** Stripe retries anything that is not a 2xx. Return once the event is safely stored, not after slow work.
+- **Skip duplicates.** Stripe can send the same event twice, and in any order. Store `event.id` and skip one you have already handled.
+- **Unknown types are logged and acknowledged.** Stripe sends every type the endpoint subscribes to, including ones added later.
 
-**Deduplicate on `event.id`.** Stripe delivers at least once and does not
-guarantee order, so the same event can arrive twice. Treat `event.id` as an
-idempotency key and skip anything you have already applied.
-
-## Why the Stripe SDK is imported `import type`
-
-```ts
-import type Stripe from "stripe";
-```
-
-You get Stripe's full type definitions — every event type, every object shape —
-and the bundler erases the import at build time, so the SDK contributes **zero
-bytes** to what gets deployed. The whole function is about 3 KB.
-
-That is not only an optimisation. This runs on WebAssembly, and Stripe's Node SDK
-assumes Node built-ins that do not exist here; its `constructEvent` reaches for
-`node:crypto`. Verification is implemented directly on WebCrypto instead, which
-the runtime does provide.
-
-## Running the tests
+## Tests
 
 ```bash
-npm test        # signature verification
+npm test
 npm run typecheck
 ```
 
-The tests sign payloads the way Stripe does rather than calling the verifier's own
-helpers, so they exercise the real scheme, not this implementation's idea of it.
+The tests call the handler with a `Request` and read the `Response`. They sign each body with `Stripe.webhooks.generateTestHeaderStringAsync`, the helper Stripe ships for this. Keep them as a pattern for your own, or delete them.
 
 ## License
 
