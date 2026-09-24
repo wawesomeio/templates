@@ -2,7 +2,7 @@
   "name": "contact-form",
   "version": "1.0.0",
   "type": "module",
-  "description": "A contact form on wawesome.io whose messages land as rows in your own Supabase table",
+  "description": "A static contact page on wawesome.io and one Hono route that saves each message to your own Supabase table",
   "license": "MIT",
   "scripts": {
     "build": "wawesome build",
@@ -15,5 +15,9 @@
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
     "wawesome": "^0.21.0"
+  },
+  "dependencies": {
+    "hono": "^4.13.9",
+    "zod": "^4.6.5"
   }
 }

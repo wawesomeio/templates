@@ -2,5 +2,8 @@
   "app": "contact-form",
   "function": "root",
   "entry": "src/index.ts",
-  "opens_host": ["SUPABASE_URL"]
+  "assets": "public",
+  "opens_host": [
+    "SUPABASE_URL"
+  ]
 }
