@@ -12,10 +12,9 @@ no substitution pass, no tooling required to make it work: clone it, `npm instal
 | Template | What it is |
 | --- | --- |
 | [`landing-page`](landing-page) | A one-page website for a small business, returned by one Function — one file, no build step, and nothing to upload beside it |
-| [`page-and-api`](page-and-api) | A landing page and the endpoint its form posts to, in one deploy — the pages are files the platform serves, the answer comes from a handler beside them, at the same address |
 | [`stripe-webhook`](stripe-webhook) | A Stripe webhook endpoint with signature verification already wired and tested |
 | [`llm-proxy`](llm-proxy) | A server-side proxy for any OpenAI-compatible model that streams the answer to the page, so the API key and the system prompt never reach the browser |
-| [`contact-form`](contact-form) | A contact form whose messages land as rows in your own Supabase table, reached over plain `fetch` with a key that can insert and nothing else |
+| [`contact-form`](contact-form) | A static contact page and one Hono route at the same address, saving each message to your own Supabase table with a key that can insert and nothing else |
 | [`rest-api`](rest-api) | A REST API built with Hono and zod, whose customers and orders live in your own Supabase tables |
 | [`react-ssr`](react-ssr) | A React application rendered on the server and streamed to the browser, with its assets resolving under every address the App answers at |
 | [`scheduled-job`](scheduled-job) | A scheduled background job that runs on a recurring timer — private visibility, a Schedule block, trigger verification, and structured logging |

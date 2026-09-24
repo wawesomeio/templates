@@ -2,8 +2,9 @@
  * Smoke test for the deployed contact-form template.
  *
  * CI deploys it with no Supabase project behind it, which is the state a
- * customer's first deploy is in: the page is served, a wrong field is refused,
- * and a valid message is answered with the note that there is no database yet.
+ * customer's first deploy is in: the static page is served, a wrong field is
+ * refused, and a valid message is answered with the note that there is no
+ * database yet.
  *
  * Usage: node .github/smoke/contact-form.mjs <public-address>
  */
@@ -40,14 +41,14 @@ check("the email input is labelled", html.includes('<label for="email">'));
 
 const wrong = await post(new URLSearchParams({ ...valid, email: "not-an-address" }).toString(), "application/x-www-form-urlencoded");
 check("a wrong field is 422", wrong.status === 422, `got ${wrong.status}`);
-check("the error is against the email field", wrong.text.includes('id="email-error"'), wrong.text.slice(0, 160));
+check("the answer names the email field", wrong.text.includes("email:"), wrong.text.slice(0, 160));
 
 const unconfigured = await post(JSON.stringify(valid), "application/json");
 check("with no database, a valid message is 503", unconfigured.status === 503, `got ${unconfigured.status}`);
 check("the answer names schema.sql as the next step", unconfigured.text.includes("schema.sql"), unconfigured.text.slice(0, 160));
 
-const deleted = await fetch(address, { method: "DELETE" });
-check("a method it does not answer is 405", deleted.status === 405, `got ${deleted.status}`);
+const sent = await post(new URLSearchParams(valid).toString(), "application/x-www-form-urlencoded");
+check("with no database, a valid form post is 503 too", sent.status === 503, `got ${sent.status}`);
 
 if (failures.length > 0) {
   console.error(`\n${failures.length} check(s) failed.`);

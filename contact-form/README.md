@@ -1,14 +1,10 @@
 # Contact Form
 
-A contact form whose messages land as rows in a table you own.
+A contact page whose messages land as rows in a table you own.
 
-The Function serves the page, checks what was sent, and writes each message to a
-table in your own [Supabase](https://supabase.com) project. You open that table
-in Supabase's Table Editor to read the messages, and you can give your client a
-seat there to read them too. There is no dashboard to build.
+The page is a plain file, [`public/index.html`](public/index.html). Its form posts to the page's own address, where one [Hono](https://hono.dev) route checks the message with [zod](https://zod.dev) and saves it to a table in your own [Supabase](https://supabase.com) project. You read the messages in Supabase's Table Editor, and you can give your client a seat there to read them too. There is no dashboard to build.
 
-The site is a small garden designer that does not exist. The copy is there so
-the page looks like something before you have written a word.
+The site is a small garden designer that does not exist. The copy is there so the page looks like something before you have written a word.
 
 ## Quick start
 
@@ -20,8 +16,7 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-The page is live at the address the deploy prints. A message sent now is
-answered with a note saying the form has no database yet. Then, in this order:
+The page is live at the address the deploy prints. A message sent now is answered with a note saying the form has no database yet. Then, in this order:
 
 1. Create a project at [supabase.com/dashboard](https://supabase.com/dashboard).
 2. Open its **SQL Editor**, paste in [`schema.sql`](schema.sql), and run it.
@@ -31,59 +26,28 @@ answered with a note saying the form has no database yet. Then, in this order:
    npx wawesome env set SUPABASE_URL https://<project-ref>.supabase.co
    ```
 
-   This also adds that one host to your App's outbound allowlist, because a
-   Function can call only the hosts its App allows.
 4. Set the publishable key. You find it under **Project Settings → API Keys**:
 
    ```bash
    npx wawesome env set SUPABASE_PUBLISHABLE_KEY sb_publishable_...
    ```
 
-5. Send a message from the page, then open **Table Editor → enquiries**. The row
-   is there.
+5. Send a message from the page, then open **Table Editor → enquiries**. The row is there.
 
-`npx wawesome init --template contact-form` asks for the same two values. Leave
-them blank to follow the order above.
+`npx wawesome init --template contact-form` asks for the same two values. Leave them blank to follow the order above.
 
-## Why there is no secret
+## What the route answers
 
-The Function writes with the **publishable** key, not the secret one. On its own
-that key could do whatever the table's grants allow. `schema.sql` turns on
-row-level security and grants one thing: an insert into `enquiries`. So the key
-can add a row, and it cannot read, change or delete one. A leaked key cannot
-leak your messages.
-
-That is why the key is stored as a plain variable and not a secret. Supabase
-designs it to be public, and the policy is what limits it.
-
-Never put the secret key (`sb_secret_...`) here. It skips every policy.
-
-What the policy does **not** protect: anyone holding the publishable key can
-insert rows directly, skipping the Function's validation. The length checks in
-`schema.sql` still hold for them. The email check does not.
-
-Spam protection and rate limiting are yours to add.
-
-## What the Function answers
-
-```
-GET  /          the page, 200
-POST /          a form or a JSON body
-*    /other     404
-```
+The route in [`src/index.ts`](src/index.ts) takes a form post or a JSON body at the page's address.
 
 | What happened | Form post | JSON post |
 | --- | --- | --- |
-| Saved | `303` to `?sent`, the thank-you page | `201 {"status":"sent"}` |
-| A field is wrong | `422`, the form again, the error against the field | `422 {"errors":{"email":"..."}}` |
+| Saved | `303` to `#sent`, the thank-you note | `201 {"status":"sent"}` |
+| A field is wrong | `422`, a line for each wrong field | `422 {"errors":{"email":["..."]}}` |
 | No database set | `503`, a note naming the next step | `503 {"error":"..."}` |
 | Supabase refused or was unreachable | `502`, the reason in your logs | `502 {"error":"..."}` |
 
-The form is a plain HTML `<form method="post">` with no script, so it works with
-JavaScript turned off. Each input has a label. An error is linked to its input
-with `aria-describedby`, listed in a summary at the top, and the first input
-that failed takes focus. What was typed is shown again, so the visitor fixes one
-field and sends.
+The form has no script, so it works with JavaScript turned off. The browser checks each field before it sends, and the route checks again. The `303` means a reload of the thank-you note does not send the message twice.
 
 ```bash
 curl -X POST https://<your-address> \
@@ -91,23 +55,31 @@ curl -X POST https://<your-address> \
   -d '{"name":"Priya Shah","email":"priya@example.com","message":"Hello"}'
 ```
 
-## Why plain `fetch`, not `@supabase/supabase-js`
+## How the platform runs it
 
-[`src/database.ts`](src/database.ts) is one `fetch` to the table's REST
-address. The `@supabase/supabase-js` package carries a realtime client built on
-`WebSocket`, and a Function has no sockets. The call is short enough that there
-is nothing to gain from a client library.
+**The page and the route share one address.** `wawesome-function.json` names `public` as the directory of files to deploy. A `GET` for the page is served straight from storage, and no code runs. A `POST` to the same address reaches the route. One hostname means no CORS and no endpoint URL to set in the page.
 
-The `Prefer: return=minimal` header matters. Without it Supabase sends the new
-row back, and the policy refuses to let this key read it.
+**The page is on your App's own hostname.** The development path form, `https://api.wawesome.io/x/...`, serves no files and reaches only the route.
 
-## Editing it
+**The page and the route are one version.** They deploy together, and `npx wawesome version switch` rolls both back together.
 
-- **The words and fields**: [`src/page.ts`](src/page.ts).
-- **The rules**: [`src/enquiry.ts`](src/enquiry.ts). A new field needs a column
-  in `schema.sql` too.
-- **Something went wrong**: `npx wawesome logs --follow` shows what Supabase
-  answered when it refused a row.
+**Outbound calls are closed by default.** A Function can only call hosts its App allows. Setting `SUPABASE_URL` opens that one host and nothing else.
+
+**There are no sockets.** [`src/supabase.ts`](src/supabase.ts) is one `fetch` to the table's REST address, not `@supabase/supabase-js`, because that package carries a realtime client built on `WebSocket`. The `Prefer: return=minimal` header matters: without it Supabase sends the new row back, and the policy refuses to let this key read it.
+
+## Why there is no secret
+
+The Function writes with the **publishable** key, not the secret one. `schema.sql` turns on row-level security and grants one thing: an insert into `enquiries`. So the key can add a row, and it cannot read, change or delete one. A leaked key cannot leak your messages. That is why it is stored as a plain variable. Never put the secret key (`sb_secret_...`) here. It skips every policy.
+
+Anyone holding the publishable key can insert rows directly and skip the route's checks. The length checks in `schema.sql` still hold for them. The email check does not.
+
+Spam protection and rate limiting are yours to add.
+
+## Changing it
+
+- **The words and the fields** are in `public/index.html`. Edit it and deploy again.
+- **The rules** are the zod schema at the top of `src/index.ts`. A new field needs an input in the page and a column in `schema.sql` too.
+- **Something went wrong**: `npx wawesome logs --follow` shows what Supabase answered when it refused a row.
 
 ## Tests
 
@@ -116,5 +88,4 @@ npm test
 npm run typecheck
 ```
 
-The suite drives the handler with a `Request` and reads the `Response`. The call
-to Supabase is replaced with a stub, so nothing reaches the network.
+The tests call the exported `fetch` handler with a `Request` and read the `Response`. The call to Supabase is replaced with a stub, so nothing reaches the network.
