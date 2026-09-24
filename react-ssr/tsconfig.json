@@ -1,13 +1,14 @@
 {
+  "include": ["**/*", "**/.server/**/*", "**/.client/**/*", ".react-router/types/**/*"],
+  "exclude": ["node_modules", "build", "dist"],
   "compilerOptions": {
-    "target": "esnext",
-    "lib": ["es2023", "dom", "dom.iterable"],
-    "moduleDetection": "force",
-    "module": "preserve",
+    "lib": ["DOM", "DOM.Iterable", "ES2023"],
+    "types": ["node", "vite/client"],
+    "target": "ES2022",
+    "module": "ES2022",
     "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "types": ["node", "vite/client", "wawesome/vite-env"],
     "jsx": "react-jsx",
+    "rootDirs": [".", "./.react-router/types"],
     "strict": true,
     "noUnusedLocals": true,
     "noEmit": true,
@@ -15,6 +16,5 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
-  },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+  }
 }

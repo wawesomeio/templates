@@ -1,9 +1,10 @@
 # React, server-rendered
 
-A React application that renders on the server and streams to the browser, running
-as a single Function on [wawesome.io](https://wawesome.io). One command deploys the
-whole thing — the server bundle and the client build go up together, at one version,
-and roll back together.
+A [React Router](https://reactrouter.com) v7 app in framework mode, rendered on the server by one Function on [wawesome.io](https://wawesome.io). The server bundle and the client build deploy together, run at one version and roll back together.
+
+It answers at the App's own hostname only, not under a preview URL or the path form.
+
+## Quick start
 
 ```bash
 npm install
@@ -11,20 +12,21 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-Open the address it prints and read the page source. The markup is already there,
-before any script has run.
+Open the address it prints and read the page source. The list of books is already in the HTML, before any script has run.
 
 ## What is here
 
 ```
-index.html               the document — inlined into the server bundle, never uploaded
-src/entry.server.tsx     the handler the platform calls; the only file that knows about HTTP
-src/entry.client.tsx     hydration
-src/App.tsx              the page
-src/Activity.tsx         a section behind a Suspense boundary, so it does not block the shell
-src/mount.ts             where every URL in the document comes from
-vite.config.ts           two builds, one command
+app/root.tsx              the document and the error page
+app/routes.ts             the route table
+app/routes/home.tsx       the list: a loader, and a form with an action
+app/routes/book.tsx       one book: a loader that answers 404 for an unknown id
+app/books.ts              the data, as a fixed list
+app/entry.server.tsx      renders to a web stream
+server.ts                 the Function: React Router's request handler as `fetch`
 ```
+
+The form keeps nothing. Its action checks the title and redirects to `/?suggested=...`, so a reload does not post again. To store suggestions, write them to a database you reach over `fetch`, such as a Supabase table. A Function keeps nothing in memory from one request to the next.
 
 ## Working on it
 
@@ -32,99 +34,33 @@ vite.config.ts           two builds, one command
 npm run dev
 ```
 
-Hot module replacement, with the application driven through the same
-`entry.server.tsx` the platform calls, so what you see locally is the rendering
-path and not a client-only approximation of it.
+This is React Router's own dev server, with hot reloading.
 
-One gap your machine cannot show you is locale formatting. The engine carries no
-ICU. `Intl` is not defined at all, and `toLocaleString` and its relatives are
-worse than absent. They answer, and they ignore the locale. A component
-formatting a price renders `1,234.50` here and `1234.5` in production, and you
-meet it as a hydration mismatch after you deploy.
+`npm run build` runs `react-router build`, then bundles `build/server/index.js` into `dist/index.js`. `wawesome deploy` uploads `dist/index.js` as the Function and `build/client` as static files. The platform serves the files under `/assets/` from storage, so they never reach your code.
 
-The dev server removes `Intl` for you, so a reference to it fails locally exactly
-as it would on the guest. It cannot do the same for the methods. They live on
-Node's own prototypes, which Vite shares, so taking them away would break the dev
-server itself. It prints a warning naming them at startup instead.
-
-Two things do hold you to it. `npm run build` warns about each one, naming the
-file and line, and `npm test` refuses them outright, through the
-`wawesome/vitest-setup` that `vitest.config.ts` already loads. So run the suite
-before you deploy.
-
-Format the value yourself, or bundle a formatting library and call it directly.
-If you add an `Intl` polyfill to `package.json`, the dev server stops taking
-`Intl` away and the build stops objecting to it.
-
-## Addresses
-
-Your Function answers at several addresses at once: its App's hostname, any older
-slug a rename left resolving, a preview URL for a version you have not promoted,
-and the path form where a deployment enables it. Every one of them is a different
-prefix in front of the same application.
-
-So no URL in this project is decided at build time. The platform strips the prefix
-on the way in and hands it back on `x-wawesome-forwarded-prefix`, `src/mount.ts`
-reads it, and the document is built from it — the stylesheet, the client bundle,
-the images, and the same string handed to the browser so hydration resolves
-against exactly what the server rendered against.
-
-Relative URLs would not do instead: they resolve against the document's own path,
-and a page with client-side routing is served at whatever depth the router asks
-for. Nor would a `<base>` element, which captures every relative URL on the page,
-including your own links and form actions.
-
-## The two builds
-
-`npm run build` runs Vite twice and then bundles the result for the platform:
-
-- **client** → `dist/client`, uploaded as static files. Served straight from
-  object storage under `/assets/`, cached immutably, never reaching the runtime.
-- **server** → `dist/server`, bundled into `dist/index.js` and deployed as the
-  Function.
-
-`index.html` belongs to neither. It is inlined into the server bundle, because a
-document served statically at the mount root would shadow the route that renders
-the page — every visitor would get an empty shell and a hydration mismatch, with
-nothing in the logs to say why. The platform refuses to upload one at all.
-
-## What a render costs
-
-A single invocation has fuel for roughly **165 KB of rendered HTML**. Past that
-the invocation ends as a `fuel-exhausted` 502 with nothing rendered — so paginate
-long lists rather than streaming a whole table into one document. Memory is not
-the constraint: a render at that ceiling uses about 12 MB of the 32 available.
-
-The page here renders in about 3 KB.
-
-## When rendering fails
-
-`src/entry.server.tsx` catches nothing, on purpose.
-
-A component that throws while the **shell** is rendering rejects before any of
-the response has been committed. The caller gets a whole, framed 500 rather than
-a body cut off part-way, the run is recorded against this Function rather than
-the platform, and the stack is in `wawesome logs` under the invocation id on that
-same response — so a failure is diagnosable from the response the caller was
-handed.
-
-A boundary that fails *after* the shell is committed is React's to recover from
-in the browser, and reaches the platform as an ordinary successful run.
-
-If you want a designed error page rather than an empty 500, put an error boundary
-in the component tree, where it has something to say. Wrapping the handler in a
-`try`/`catch` produces the same 500 with less in the logs.
-
-## Deploying
+## Tests
 
 ```bash
-npx wawesome deploy
+npm test
 ```
 
-The client build's files go up first — only the ones the platform does not already
-hold, so changing one component re-uploads one chunk — and then the server bundle,
-declaring the set it was built against. The version and the files it references are
-written together or not at all.
+The one test requests `/` from the Function's `fetch` and checks that the loader's data is in the page.
+
+## The platform
+
+A Function is not Node. `vite.config.ts` bundles every dependency into the server build. It picks each package's `worker` or `browser` build, so nothing imports Node. Keep the build a production one. A development build is about 2.5 times larger and may not fit in a Function's 32 MB of memory.
+
+The engine has no `Intl`, and `toLocaleString` ignores the locale. A price that renders `1,234.50` on your machine renders `1234.5` in production, and you see it as a hydration mismatch. `npm run build` warns about each use, with its file and line, and `npm test` fails on them. Format the value yourself, or bundle a formatting library.
+
+Outbound `fetch` is closed by default. Add a host to the App's allowlist before a loader or an action calls it.
+
+One render has a fixed fuel budget. Paginate long lists rather than rendering a whole table into one page.
+
+When a loader or a component throws, React Router renders the `ErrorBoundary` in `app/root.tsx` with a 500, and the stack is in the logs:
+
+```bash
+npx wawesome logs --follow
+```
 
 ## License
 
