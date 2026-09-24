@@ -1,6 +1,6 @@
-# Stripe Webhook Receiver
+# Stripe webhook receiver
 
-A Stripe webhook endpoint. It checks every request's signature with the Stripe SDK, then hands the event to a `switch` where your code goes.
+A Stripe webhook endpoint. It checks the signature on every request with the Stripe SDK, then hands the event to a `switch`. Your code goes in that `switch`.
 
 ## Quick start
 
@@ -22,7 +22,7 @@ Send a test event from the Stripe dashboard and watch it arrive:
 npx wawesome logs --follow
 ```
 
-`npx wawesome init --template stripe-webhook` asks for the same secret. If the endpoint does not exist yet, leave it blank and set it after the first deploy.
+`npx wawesome init --template stripe-webhook` asks for the same secret. If you haven't created the endpoint yet, leave it blank and set it after the first deploy.
 
 ## The files
 
@@ -37,27 +37,27 @@ npx wawesome logs --follow
 https://api.wawesome.io/x/<workspace>/stripe-webhook/stripe-events
 ```
 
-The last two parts are the App and the Function from `wawesome-function.json`. Rename them before you give the address to Stripe. After that, a rename is an address Stripe can no longer reach.
+The last two parts are the App and the Function from `wawesome-function.json`. Rename them before you give the address to Stripe. Once Stripe has it, a rename gives you an address Stripe can't reach.
 
 The Function also answers every path below that address. Stripe posts to the address itself, so the handler sees `POST /`.
 
 ### The signature
 
-The request reaches your code as Stripe sent it: every header, including `Stripe-Signature`, and the body byte for byte. Stripe signs those bytes, so the handler reads the body with `request.text()` and checks it before it parses anything:
+Your code gets the request exactly as Stripe sent it, with every header, `Stripe-Signature` included, and the body byte for byte. Stripe signs those bytes. So the handler reads the body with `request.text()` and checks the signature before it parses anything:
 
 ```ts
 event = await Stripe.webhooks.constructEventAsync(payload, signature, secret, undefined, cryptoProvider);
 ```
 
-Your Function runs on WebAssembly, not Node, so there is no `node:crypto`. `Stripe.createSubtleCryptoProvider()` makes the SDK use `crypto.subtle`, which the runtime has. That is also why the check is the async one.
+Your Function runs on WebAssembly, not Node, so there's no `node:crypto`. `Stripe.createSubtleCryptoProvider()` makes the SDK use `crypto.subtle`, which the runtime has. That's also why the check is the async one.
 
-The SDK refuses a signature that does not match, a missing one, and one older than five minutes. The handler answers all three with `400`.
+The SDK refuses a signature that doesn't match, a missing one, and one older than five minutes. The handler answers all three with `400`.
 
 ### The secret
 
-Secrets are encrypted at rest. Nobody can read one back, not from the CLI, the dashboard or the API. Your Function sees it as `process.env.STRIPE_WEBHOOK_SECRET` while it runs.
+The platform encrypts secrets at rest. Nobody can read one back, from the CLI, the dashboard or the API. Your Function sees it as `process.env.STRIPE_WEBHOOK_SECRET` while it runs.
 
-Without it, the endpoint answers `500` to every request and logs the command that fixes it.
+If the secret isn't set, the endpoint answers `500` to every request and logs the command that fixes it.
 
 ### The bundle
 
@@ -67,9 +67,9 @@ The Stripe SDK is bundled whole, so `dist/index.js` is about 220 KB. `template.j
 
 Your code goes in `handleEvent` in [`src/index.ts`](src/index.ts).
 
-- **Answer quickly.** Stripe retries anything that is not a 2xx. Return once the event is safely stored, not after slow work.
-- **Skip duplicates.** Stripe can send the same event twice, and in any order. Store `event.id` and skip one you have already handled.
-- **Unknown types are logged and acknowledged.** Stripe sends every type the endpoint subscribes to, including ones added later.
+- **Answer quickly.** Stripe retries anything that isn't a 2xx. Return once you've stored the event safely, not after slow work.
+- **Skip duplicates.** Stripe can send the same event twice, and in any order. Store `event.id` and skip an event you've already handled.
+- **Unknown types are logged and acknowledged.** Stripe sends every type the endpoint subscribes to, including types it adds later.
 
 ## Tests
 

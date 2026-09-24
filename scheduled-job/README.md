@@ -1,8 +1,8 @@
-# Scheduled Job
+# Scheduled job
 
-A job that runs on a timer. It is private, it checks who started it, and it logs what it found.
+A job that runs on a timer. It's private, it checks who started it, and it logs what it found.
 
-As shipped, it checks one address every five minutes and logs whether it answered. Replace that check with your own work.
+As it ships, it checks one address every five minutes and logs whether the address answered. Replace that check with your own work.
 
 ## Quick start
 
@@ -12,7 +12,7 @@ npx wawesome login
 npx wawesome deploy
 ```
 
-Then tell it what to check. Until you do, every run fails and logs that it has nothing to check:
+Then tell it what to check. Until you do, every run fails and logs that it has nothing to check.
 
 ```bash
 npx wawesome env set TARGET_URL https://httpbin.org/status/200
@@ -28,7 +28,7 @@ npx wawesome invoke          # run it now, without waiting for the timer
 
 ## The files
 
-- [`wawesome-function.json`](wawesome-function.json) declares the Function, its schedule, and that it is private.
+- [`wawesome-function.json`](wawesome-function.json) declares the Function, its schedule, and that it's private.
 - [`src/index.ts`](src/index.ts) is the handler. It checks the trigger, runs the check, logs the result and returns `204`.
 - [`src/check.ts`](src/check.ts) is the job itself. Replace its body with the work you want done.
 
@@ -52,29 +52,29 @@ npx wawesome invoke          # run it now, without waiting for the timer
 }
 ```
 
-`"visibility": "private"` means the Function has no public address. Nobody on the internet can reach it. It runs when its schedule fires, when you run `wawesome invoke`, or on your machine while you develop.
+With `"visibility": "private"`, the Function has no public address, and nobody on the internet can reach it. It runs when its schedule fires, when you run `wawesome invoke`, or on your machine while you work on it.
 
 ### Schedules
 
-A schedule is a 5-field cron expression, in UTC. The shortest interval is five minutes. Deploying the file is all it takes to start the timer.
+A schedule is a 5-field cron expression, in UTC. The shortest interval is five minutes. Deploy the file and the timer starts. There's nothing else to turn on.
 
-A scheduled run is different from a request:
+A scheduled run isn't like a request:
 
 - Nobody waits for the response, so the platform throws the body away.
-- The status code is the result. A 2xx records a successful run. Anything else records a failed run.
+- The status code is the result. A 2xx counts as a successful run. Anything else counts as a failed run.
 - The run gets the platform's full time limit, not the shorter one a waiting caller gets.
 
-So logs are the only output a run has. The handler returns `204` even when the check fails, because the job itself ran. The failure is in the log line. Return a non-2xx instead if you want a failed check to count as a failed run.
+So the logs are the only output a run has. The handler returns `204` even when the check fails, because the job itself ran. The failure is in the log line. If you want a failed check to count as a failed run, return a non-2xx instead.
 
 ### Who started the run
 
 The platform sets the `x-wawesome-trigger` header on every run:
 
-- `schedule`: the timer fired.
-- `manual`: someone ran `wawesome invoke`, or called the management API.
-- `caller`: an HTTP request. The handler treats a missing header the same way.
+- `schedule` means the timer fired.
+- `manual` means someone ran `wawesome invoke` or called the management API.
+- `caller` means an HTTP request. The handler treats a missing header the same way.
 
-A caller cannot fake this header. Every `x-wawesome-*` header is removed from a request before your code sees it. So the handler lets `schedule` and `manual` runs through without its own check:
+A caller can't fake this header. The platform removes every `x-wawesome-*` header from a request before your code sees it. So the handler lets `schedule` and `manual` runs through without a check of its own:
 
 ```ts
 export function isAuthorizedTrigger(request: Request): boolean {
@@ -93,13 +93,13 @@ export function isAuthorizedTrigger(request: Request): boolean {
 }
 ```
 
-Any other request must send `Authorization: Bearer <JOB_SECRET>` once you set `JOB_SECRET`. That only matters if you make the Function public later.
+Once you set `JOB_SECRET`, any other request must send `Authorization: Bearer <JOB_SECRET>`. That only matters if you make the Function public later.
 
 ### The host it calls
 
-A Function can call only the hosts its App allows. `TARGET_URL` is listed under `opens_host`. When you set it, during `init` or with `wawesome env set`, the CLI adds the host in that address to your App's allowlist. Only that host is opened, and only over HTTPS on the default port. There is no fallback address.
+A Function can only call the hosts its App allows. `TARGET_URL` is listed under `opens_host`. When you set it, during `init` or with `wawesome env set`, the CLI adds the host in that address to your App's allowlist. It opens only that host, and only over HTTPS on the default port. There's no fallback address.
 
-The allowlist follows the value you set, not the code. If you change the code to call another host, calls to it are refused. Open it under **Egress** in the [dashboard](https://dashboard.wawesome.io). [The egress docs](https://wawesome.io/docs/egress) show how.
+The allowlist follows the value you set, not the code. If you change the code to call another host, the platform refuses those calls. Open the host under **Egress** in the [dashboard](https://dashboard.wawesome.io). [The egress docs](https://wawesome.io/docs/egress) show how.
 
 ## Managing schedules
 
@@ -126,4 +126,4 @@ npm test
 npm run typecheck
 ```
 
-The tests call the handler the way the platform does: a `Request` in, a `Response` out. They replace `fetch`, so no run reaches the network. Keep them as a pattern for your own, or delete them.
+The tests call the handler the way the platform does, with a `Request` in and a `Response` out. They replace `fetch`, so no run reaches the network. Keep them as a pattern for your own, or delete them.
