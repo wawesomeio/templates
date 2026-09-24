@@ -22,5 +22,6 @@
     }
   ],
   "providers": ["openai"],
+  "bundle_budget_bytes": 524288,
   "post_deploy": "Your proxy is live at {{url}}\n\nCall it from your frontend:\n  const response = await fetch('{{url}}', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),\n  })\n\nThe answer streams back as server-sent events, so the page renders it as the\nmodel writes it:\n\n  event: delta\n  data: {\"text\":\"Your order \"}\n\n  event: done\n  data: {\"finish_reason\":\"stop\"}\n\nAnything refused before the answer begins is still JSON with a status, so check\nresponse.ok before you start reading. The README has the whole reader — it is\ntwenty lines.\n\nThen:\n  1. Edit src/system-prompt.ts — the shipped prompt is a placeholder persona, yours is the point.\n  2. Lock the endpoint to your site:\n       wawesome env set ALLOWED_ORIGINS https://your-site.com\n  3. Watch what each request costs, in tokens, as it happens:\n       wawesome logs --follow\n  4. Shipped a bad prompt? Roll the Function back — no redeploy, no git revert."
 }

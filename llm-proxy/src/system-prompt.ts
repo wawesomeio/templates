@@ -1,19 +1,4 @@
-/**
- * The system prompt.
- *
- * This file is the reason the template exists. A prompt like this is worth real
- * work — the scope fence, the refusal policy, the output shape, the tone are
- * all things you arrive at by iterating against actual users — and the moment
- * it ships inside a frontend bundle, anyone can read it out of the browser's
- * sources tab and paste it into their own product.
- *
- * Here it never leaves the server. It is compiled into the deployed Function,
- * prepended to every conversation, and no field of the public API can replace
- * it (see `parseChatRequest` in `policy.ts`, which refuses a client-sent
- * `system` message outright).
- *
- * Replace all of it. Yours is the point.
- */
+// A placeholder persona. Replace all of it: yours is the point.
 export const SYSTEM_PROMPT = `You are the support assistant for an online store. You help customers with orders, returns, shipping and product questions.
 
 Scope:

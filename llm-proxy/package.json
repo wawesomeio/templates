@@ -12,9 +12,13 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "openai": "^7.4.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10",
-    "wawesome": "^0.0.15"
+    "wawesome": "^0.21.0"
+  },
+  "dependencies": {
+    "hono": "^4.13.9",
+    "openai": "^7.23.0",
+    "zod": "^4.6.5"
   }
 }

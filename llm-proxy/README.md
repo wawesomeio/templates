@@ -1,34 +1,47 @@
 # LLM Proxy
 
-A server-side proxy between your frontend and any OpenAI-compatible model, which
-streams the answer to the page a word at a time.
+A proxy between your page and any OpenAI-compatible model. It is built with [Hono](https://hono.dev), [zod](https://zod.dev) and the [`openai`](https://github.com/openai/openai-node) SDK, and it streams the answer to the page as the model writes it.
 
-The model call is one `fetch`. That is not what this is for. It is for the three
-things a frontend cannot do for itself:
+It does three things a page cannot do for itself:
 
-- **The API key never reaches the browser.** It lives in this Function's
-  environment, stored write-only. It is not in your bundle, not in a network
-  response, and not recoverable from devtools.
-- **The system prompt never reaches the browser either.** It is compiled into
-  the deployed code, and no field of the public API can replace it — a client
-  that sends a `system` message is refused rather than sanitised.
-- **Every request has a ceiling before it costs anything.** Who may call, how
-  much history they may send, how long the answer may be. All decided here, with
-  no network involved.
+- **It keeps the API key on the server.** The key is stored write-only in the Function's environment. It is not in your bundle and never appears in a response.
+- **It keeps the system prompt on the server.** The prompt is compiled into the deployed code. A client that sends a `system` message is refused.
+- **It limits every request before it costs anything.** Who may call, how much history they may send and how long the answer may be are all checked before the model is called.
 
-The client's half of the contract is deliberately tiny:
+## Quick start
 
-```http
-POST /
-Content-Type: application/json
-
-{ "messages": [{ "role": "user", "content": "Where is my order?" }] }
+```bash
+npx wawesome init --template llm-proxy
 ```
 
-```http
-200 OK
-Content-Type: text/event-stream
+It asks for your API key and the origins allowed to call the endpoint, allows outbound calls to OpenAI for the App, deploys, and prints the URL.
 
+Or by hand:
+
+```bash
+npm install
+npx wawesome login
+npx wawesome env set OPENAI_API_KEY sk-... --secret
+npx wawesome deploy
+```
+
+## Calling it
+
+The client sends the conversation and nothing else:
+
+```js
+const response = await fetch('https://api.wawesome.io/x/<workspace>/llm-proxy/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),
+});
+```
+
+`model`, `temperature` and the output limit are not fields. A request that carries one is refused, so nobody can use your key to call a more expensive model.
+
+The answer is `text/event-stream`:
+
+```
 event: delta
 data: {"text":"Your order "}
 
@@ -39,85 +52,15 @@ event: done
 data: {"finish_reason":"stop"}
 ```
 
-`model`, `temperature` and the output ceiling are not fields. A request carrying
-any of them is refused — that is the difference between a proxy and an open
-relay to your billing account.
-
-## Deploy it
-
-```bash
-npx wawesome init --template llm-proxy
-```
-
-It asks for your API key and the origins allowed to call the endpoint, stores
-them, enables outbound calls to OpenAI for the App, deploys, and prints the URL.
-
-Or clone and deploy by hand:
-
-```bash
-git clone https://github.com/wawesomeio/templates
-cd templates/llm-proxy
-npm install
-npx wawesome login
-npx wawesome env set OPENAI_API_KEY sk-... --secret
-npx wawesome deploy
-```
-
-## The address your frontend calls
-
-```
-https://api.wawesome.io/x/<workspace>/llm-proxy/chat
-                        │      │           │      │
-                        │      │           │      └─ Function slug
-                        │      │           └─ App slug
-                        │      └─ your workspace slug
-                        └─ reserved for invocation, never a management route
-```
-
-`deploy` prints it. The App and Function slugs come from
-[`wawesome-function.json`](wawesome-function.json), so renaming either renames
-the address — worth doing before the URL is baked into a frontend build.
-
-From a page, sending the request is one `fetch`; [reading the
-answer](#the-answer-arrives-as-it-is-written) is the next section.
-
-```js
-const response = await fetch('https://api.wawesome.io/x/acme/llm-proxy/chat', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my order?' }] }),
-});
-```
-
-Cross-origin, the browser makes that two requests: an `OPTIONS` preflight first,
-then the `POST`. The preflight reaches this Function like anything else and
-`src/index.ts` answers it — there is no platform layer in front deciding CORS on
-your behalf. The `Origin` header arrives exactly as the browser sent it, which is
-what `ALLOWED_ORIGINS` is compared against.
-
-The address is a mount rather than a single route: every path beneath it reaches
-this Function too, which sees the path with the mount stripped off. A frontend
-posts to the address itself, so the handler runs for a request it sees as
-`POST /`.
-
-## The answer arrives as it is written
-
-The response is `text/event-stream`, and it carries three kinds of event.
-
-| Event | Payload | What it means |
+| Event | Data | Meaning |
 | --- | --- | --- |
-| `delta` | `{ "text": "..." }` | A piece of the answer. Zero or more of them, in order — append them as they arrive |
-| `done` | `{ "finish_reason": "stop" }` | The answer is whole. Always last. `"length"` instead of `"stop"` means `maxOutputTokens` cut it off mid-sentence |
-| `error` | `{ "error": "..." }` | The answer broke after it had started. Always last, and never alongside a `done` |
+| `delta` | `{ "text": "..." }` | The next piece of the answer. Append it. |
+| `done` | `{ "finish_reason": "stop" }` | The answer is complete. `"length"` means the output limit cut it off. |
+| `error` | `{ "error": "..." }` | The answer broke after it started. |
 
-A stream that ends with **neither** `done` nor `error` did not finish: the
-connection dropped, or the platform ended the invocation before the Function
-could say anything. That is why `done` exists at all — a truncated body and a
-complete one are otherwise indistinguishable to a browser, and an assistant that
-silently stops mid-sentence is worse than one that admits it.
+`done` and `error` always come last, and never both. A stream that ends with neither was cut off: the connection dropped, or the platform ended the invocation.
 
-`EventSource` cannot send a `POST` or a request body, so reading this is `fetch`
-plus a reader. That is twenty lines, all of them here:
+`EventSource` cannot send a POST body, so read the stream with `fetch`:
 
 ```js
 if (!response.ok) throw new Error((await response.json()).error);
@@ -149,49 +92,31 @@ for (;;) {
 if (!complete) throw new Error('The answer stopped before it finished.');
 ```
 
-The `response.ok` check on the first line is the whole of the error handling for
-anything that fails **before** the answer starts — a refused origin, a body over
-a ceiling, a provider that rejects the request or cannot be reached. All of those
-are answered as `application/json` with one `error` string, exactly as they were
-before this endpoint streamed anything, because a status is still available to
-carry them. Once the first byte of the stream is out the status is spent, and the
-`error` event is what is left.
+Every failure before the answer starts is a JSON body with one `error` string and a status, so the `response.ok` check on the first line handles all of them. After the first byte the status is sent, and the `error` event is the only way left to report a failure.
 
-## What it costs, per request
+## How the platform runs it
 
-Watch it as it happens:
+**The address is a mount.** The Function answers at `https://api.wawesome.io/x/<workspace>/llm-proxy/chat`. The platform strips that prefix, so a call to the address arrives as `POST /`, and `src/index.ts` declares its route as `/`. Any other path beneath the address also reaches the Function, which answers it with a 404. The App and Function names come from [`wawesome-function.json`](wawesome-function.json). Rename them before the URL goes into a frontend build.
 
-```bash
-npx wawesome logs --follow
-```
+**CORS is the Function's job.** No platform layer answers the browser's `OPTIONS` preflight. Hono's `cors` middleware does. The `Origin` header arrives as the browser sent it.
 
-Every request writes one line:
+**Outbound calls are closed by default.** A Function can only call hosts its App allows. `init` allows `api.openai.com` and nothing else.
+
+**There are only `fetch` and streams.** The `openai` SDK makes its call with `fetch` and reads the answer as a stream, and both work in the Function. The SDK is most of the bundle, about 350 KB of 480 KB.
+
+**Logs are live.** Whatever the Function writes with `console.log` appears in `npx wawesome logs --follow`.
+
+## What each request costs
+
+Every request writes one line to the log:
 
 ```
 usage model=gpt-4o-mini prompt_tokens=412 completion_tokens=118 total_tokens=530 ms=1843
 ```
 
-A proxy that hides the key also hides the bill — the frontend no longer sees
-what it spent, and neither does anyone reading the network tab. This is where
-that visibility comes back, and nowhere else: no event on the stream carries a
-token count or a price, because hiding the bill from the browser is the point
-rather than an oversight.
+The browser never sees token counts. This line is where you see them. The request asks the provider for usage (`stream_options: { include_usage: true }`), because a streamed answer only reports it when asked. A provider that does not report it logs `tokens=unreported`, not zero. An answer that broke, or whose caller closed the tab, still writes the line.
 
-Streaming makes that line harder to produce than it looks. There is no complete
-response to read the token counts off, and a provider streaming a completion
-reports usage in a single final event — only to a request that asked for it. So
-the request asks (`stream_options: { include_usage: true }`), and the one pass
-over the provider's stream feeds both directions at once: the text goes to the
-browser as it arrives, and the counts riding on that last event go to the log. A
-provider that ignores the opt-in gets `tokens=unreported`, never zero — a gap in
-the log is honest, and a free-looking request is not.
-
-An answer that broke, and one whose caller closed the tab, both still write the
-line — so an interrupted request shows what it spent before it stopped. The one
-case with no line is the platform ending the invocation mid-answer: nothing in
-the Function runs after that.
-
-Set two rates and the line carries money as well as tokens:
+Set two prices and the line shows dollars too:
 
 ```bash
 npx wawesome env set USD_PER_MILLION_INPUT_TOKENS 0.15
@@ -202,145 +127,87 @@ npx wawesome env set USD_PER_MILLION_OUTPUT_TOKENS 0.60
 usage model=gpt-4o-mini prompt_tokens=412 completion_tokens=118 total_tokens=530 ms=1843 cost_usd=0.000133
 ```
 
-Both or neither: a half-configured pair would produce a confidently wrong
-number. The rates are configuration rather than constants in the source because
-model prices change, and a hard-coded price silently becomes a lie.
+Set both or neither. With only one, there is no cost.
 
-## The ceilings
+## The limits
 
-They are constants at the top of `src/policy.ts`. They are yours — the right
-numbers depend on what your assistant is for.
+They are the `LIMITS` constant at the top of `src/policy.ts`. Change them to fit what your assistant is for.
 
 | Limit | Default | What it stops |
 | --- | --- | --- |
-| `maxBodyChars` | 24,000 | Parsing megabytes of JSON before refusing it |
-| `maxMessages` | 12 | A client replaying a thousand-turn history at you |
-| `maxPromptChars` | 8,000 | The text that actually costs money |
-| `maxOutputTokens` | 512 | An answer that bills for as long as it likes |
+| `maxBodyBytes` | 24,000 | Reading megabytes of JSON before refusing it |
+| `maxMessages` | 12 | A client sending a thousand-turn history |
+| `maxPromptChars` | 8,000 | Too much text, which is what you pay for |
+| `maxOutputTokens` | 512 | An answer that runs as long as it likes |
 
-With them, the most expensive request anyone can send is bounded and
-calculable, whatever they put in the body.
+With these, the most expensive request anyone can send has a known price.
 
-### What the origin list is, and is not
+### The origin list
 
-`ALLOWED_ORIGINS` stops **another website** from spending your budget out of a
-visitor's tab. That is a real and common way an unprotected proxy gets drained,
-and the browser enforces it for you.
+`ALLOWED_ORIGINS` stops another website from spending your budget from a visitor's browser. The browser enforces it.
 
-It is **not** a defence against someone running `curl`: `Origin` is a header, and
-a header is whatever the caller says it is. If you need to stop that, the answer
-is authentication — check a session your app already issues, in the same place
-the origin is checked.
+It does not stop someone using `curl`. `Origin` is a header, and a caller can set it to anything. To stop that, check a session your app already issues, in the same middleware that checks the origin.
 
-Leaving it unset answers any origin, so a first deploy works before you have
-decided anything. The Function logs a warning on every request while it is unset.
+When it is not set, any origin may call, so a first deploy works. The Function logs a warning on every request until you set it.
 
-What each answer looks like from the page is deliberate, and worth knowing when
-you are debugging one. An origin **on** the list gets CORS headers on every
-response it receives, refusals included — without them a browser cannot read the
-status or the body, and a `413` you cannot see is indistinguishable from the
-endpoint being down. An origin **not** on the list gets no allow-origin header at
-all, so the call fails in the browser as a CORS error rather than as a readable
-`403`. Handing it the header would be granting the access the refusal just
-denied.
+An origin on the list gets CORS headers on every answer, refusals included, so the page can read the status and the error. An origin not on the list gets a 403 with no CORS headers, so the browser reports a CORS error.
 
-There is deliberately **no cross-request rate limit** in this template. A limiter
-worth having counts requests across invocations, and that needs shared state the
-runtime does not have yet; a counter in module scope would reset on essentially
-every request and advertise protection it does not provide. What is here instead
-is a hard ceiling on each individual request, which needs no state to be true.
+There is no rate limit across requests. A useful one needs to count requests between invocations, and the Function keeps nothing between requests. What it has instead is a limit on each request.
 
 ## Making it yours
 
-**The prompt.** `src/system-prompt.ts` ships a placeholder persona — a support
-assistant for an online store. Replace all of it. A prompt you have iterated on
-against real users is worth real money, which is the entire reason this template
-keeps it server-side.
+**The prompt.** `src/system-prompt.ts` is a placeholder support assistant for an online store. Replace all of it. Changing it is a deploy, and a bad prompt is a rollback to the previous version, with no redeploy.
 
-Changing it is a deploy. Shipping a bad one is a rollback: promote the previous
-version and the old prompt is live again, with no redeploy and no git revert.
-
-**The model.** Set without redeploying:
+**The model.** Set it without a redeploy:
 
 ```bash
 npx wawesome env set OPENAI_MODEL gpt-4o
 ```
 
-Reasoning models reject `temperature` — drop it from the request body in
-`src/index.ts` if you switch to one.
+Reasoning models reject `temperature`. Remove it from the call in `src/index.ts` if you switch to one.
 
-**A different provider.** Any OpenAI-compatible endpoint:
+**Another provider.** Any OpenAI-compatible API works:
 
 ```bash
 npx wawesome env set OPENAI_BASE_URL https://your-provider.example/v1
 ```
 
-Outbound access is default-deny per App. Scaffolding enables the `openai`
-provider, which authorises `api.openai.com` and nothing else — pointing at
-another host means adding it to the App's outbound allowlist first, or the call
-comes back as "could not be reached".
+Add that provider's host to the App's outbound allowlist first. Until you do, requests fail with "The model provider could not be reached."
 
-## What is in here
+## Environment variables
 
-```
-llm-proxy/
-├── src/index.ts           the endpoint: gate, validate, call, stream, log
-├── src/policy.ts          who may call and what it may cost — no network, all tested
-├── src/sse.ts             the event-stream format, read from the provider and written to the page
-├── src/system-prompt.ts   the prompt that never leaves the server
-├── src/usage.ts           the per-request cost line
-└── template.json          what this template needs before it can run
-```
+| Name | Required | Secret | What it is |
+| --- | --- | --- | --- |
+| `OPENAI_API_KEY` | yes | yes | The key the proxy calls the provider with |
+| `ALLOWED_ORIGINS` | no | no | Comma-separated origins allowed to call. Unset allows any |
+| `OPENAI_MODEL` | no | no | Defaults to `gpt-4o-mini` |
+| `OPENAI_BASE_URL` | no | no | Defaults to `https://api.openai.com/v1` |
+| `USD_PER_MILLION_INPUT_TOKENS` | no | no | Adds a cost to the usage line, with the one below |
+| `USD_PER_MILLION_OUTPUT_TOKENS` | no | no | See above. Set both or neither |
 
-`policy.ts`, `sse.ts` and `usage.ts` are pure and have no dependencies, which is
-why the tests cover every refusal path without a single mock.
-[`src/index.test.ts`](src/index.test.ts) drives the endpoint itself the way a
-browser does — the preflight, an admitted origin, a refused one, the CORS headers
-on every answer each of them gets, and a provider whose stream this test writes
-by hand so it can check that a delta reaches the caller while the model is still
-generating. Run them:
+`init` asks for the first two. The rest have defaults.
+
+## Responses
+
+| Status | When |
+| --- | --- |
+| `200` | The answer, as `text/event-stream` |
+| `400` | The body is not JSON, a message is wrong, or it has a field other than `messages` |
+| `403` | The origin is not allowed, or the client sent a system prompt |
+| `404` | A path other than the address itself |
+| `405` | A method other than `POST` or the `OPTIONS` preflight |
+| `413` | The body, the history or the text is over a limit |
+| `429` | The provider is rate limiting. Wait and retry |
+| `500` | `OPENAI_API_KEY` is not set. The response does not say which setting is missing |
+| `502` | The provider could not be reached, or refused the request |
+
+Every status but `200` has a JSON body with one `error` string. No response repeats what the client sent, and none carries the key, the prompt or the provider's own error text.
+
+## Tests
 
 ```bash
 npm test
 npm run typecheck
 ```
 
-The OpenAI package is a **type-only** import — full autocomplete on the request
-and response shapes, and the bundler erases it, so nothing of it reaches the
-deployed WebAssembly. CI asserts that by failing if the bundle grows.
-
-## Environment variables
-
-| Name | Required | Secret | What it is |
-| --- | --- | --- | --- |
-| `OPENAI_API_KEY` | yes | yes | The key the proxy calls with. Never readable back, never sent to a client |
-| `ALLOWED_ORIGINS` | no | no | Comma-separated origins allowed to call the endpoint. Unset answers anything |
-| `OPENAI_MODEL` | no | no | Defaults to `gpt-4o-mini` |
-| `OPENAI_BASE_URL` | no | no | Defaults to `https://api.openai.com/v1` |
-| `USD_PER_MILLION_INPUT_TOKENS` | no | no | Turns the usage line into a cost line, with the one below |
-| `USD_PER_MILLION_OUTPUT_TOKENS` | no | no | As above — both or neither |
-
-Only the first two are asked for during `init`. The rest have working defaults
-and are set with `wawesome env set` when you want them.
-
-## Responses
-
-| Status | When |
-| --- | --- |
-| `200` | `text/event-stream` — the answer, as `delta` events, ending in `done` or `error` |
-| `400` | Malformed body, a bad message, or a field other than `messages` |
-| `403` | Origin not allowed, or a client-supplied system prompt |
-| `405` | Anything other than `POST` (and the `OPTIONS` preflight) |
-| `413` | Body, conversation or prompt over a ceiling |
-| `429` | The provider is rate-limiting — back off and retry |
-| `500` | `OPENAI_API_KEY` is not set |
-| `502` | The provider could not be reached, or refused, or answered with no body at all |
-
-Everything but the first row is `application/json`, one `error` string, and a
-status the browser can branch on. Every one of them is decided before a byte of
-the answer has gone out, which is what makes the status available to carry them
-— a provider that gives up halfway through generating cannot be reported this
-way, and arrives as an `error` event instead.
-
-No refusal ever quotes what the client sent, and no response ever carries the
-key, the prompt, or the provider's own error text.
+The tests call the exported `fetch` handler with a `Request` and read the `Response`. The call to the provider goes through a stubbed `fetch`, so nothing reaches the network.
