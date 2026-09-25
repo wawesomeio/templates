@@ -1,7 +1,13 @@
 # wawesome templates
 
-Starter projects for [wawesome.io](https://wawesome.io) — small serverless
+Starter projects for [wawesome.io](https://wawesome.io/?utm_source=github-templates) — small serverless
 backends that run on WebAssembly.
+
+wawesome runs your JavaScript as small functions on WebAssembly, with nothing to
+set up. You can browse every template in the
+[gallery](https://wawesome.io/templates/?utm_source=github-templates) and read the
+[docs](https://wawesome.io/docs/?utm_source=github-templates). If you have a
+question, ask it in [Discussions](https://github.com/wawesomeio/templates/discussions).
 
 Every template here is a **real project**, not a scaffold. No placeholder tokens,
 no substitution pass, no tooling required to make it work: clone it, `npm install`,
