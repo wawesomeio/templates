@@ -49,7 +49,7 @@ A customer that doesn't exist is a 404. A body that fails the schema is a 422 th
 { "errors": { "email": ["Invalid email address"] } }
 ```
 
-If Supabase refuses a request or can't be reached, the answer is a 502. The reason is in `npx wawesome logs --follow`.
+If Supabase refuses a request or can't be reached, the answer is a 500. The reason is in `npx wawesome logs --follow`.
 
 ```bash
 curl "$API"
@@ -72,7 +72,7 @@ curl "$API/<id>/orders"
 
 ## Why the secret key
 
-The Function reads, changes and deletes rows, so it uses the secret key, which skips row-level security. `schema.sql` turns row-level security on with no policy, so the publishable key can't do anything to these tables. Keep the secret key on the server. The platform stores it as a secret and never sends it to a browser.
+The Function reads, changes and deletes rows, so it uses the secret key, which skips row-level security. `schema.sql` turns row-level security on with no policy, so the publishable key can't do anything to these tables. Set it by mistake and every route answers `503`, naming the key it needs. Keep the secret key on the server. The platform stores it as a secret and never sends it to a browser.
 
 ## Changing it
 

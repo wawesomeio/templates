@@ -95,13 +95,13 @@ describe("before Supabase is set", () => {
 });
 
 describe("when Supabase refuses", () => {
-  it("is a 502, and the reason goes to the logs", async () => {
+  it("is a 500, and the reason goes to the logs", async () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     supabase.mockResolvedValue(new Response('{"code":"PGRST205"}', { status: 404 }));
 
     const response = await postForm(valid);
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(500);
     expect(log.mock.calls.join(" ")).toContain("PGRST205");
   });
 });

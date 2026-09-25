@@ -34,6 +34,12 @@ const customerDraft = zValidator("json", CustomerDraft, (result, c) => {
 const app = new Hono<{ Variables: { supabase: Supabase } }>();
 
 app.use(async (c, next) => {
+  if (process.env.SUPABASE_KEY?.trim().startsWith("sb_publishable_")) {
+    return c.json(
+      { error: "SUPABASE_KEY is the publishable key. This template needs the secret key (sb_secret_...)." },
+      503,
+    );
+  }
   const supabase = supabaseFrom(process.env);
   if (!supabase) {
     return c.json({ error: "No database yet: run schema.sql in Supabase, then set SUPABASE_URL and SUPABASE_KEY." }, 503);
@@ -81,7 +87,7 @@ app.notFound((c) => c.json({ error: "Not found." }, 404));
 app.onError((err, c) => {
   if (err instanceof HTTPException) return err.getResponse();
   console.error(err.message);
-  return c.json({ error: "The database refused the request. The reason is in your logs." }, 502);
+  return c.json({ error: "The database refused the request. The reason is in your logs." }, 500);
 });
 
 function noSuchCustomer(c: Context) {

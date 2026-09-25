@@ -43,14 +43,14 @@ app.post("/", async (c) => {
 
 app.onError((err, c) => {
   console.error(err.message);
-  return refuse(c, 502, "Your message could not be saved just now. Please try again in a few minutes.");
+  return refuse(c, 500, "Your message could not be saved just now. Please try again in a few minutes.");
 });
 
 function sentAsJson(c: Context) {
   return c.req.header("content-type")?.includes("application/json") ?? false;
 }
 
-function refuse(c: Context, status: 400 | 502 | 503, error: string) {
+function refuse(c: Context, status: 400 | 500 | 503, error: string) {
   return sentAsJson(c) ? c.json({ error }, status) : c.text(error, status);
 }
 

@@ -161,9 +161,9 @@ describe("a refusal", () => {
     provider.mockResolvedValue(Response.json({ error: { message: "Incorrect API key" } }, { status: 401 }));
     const rejected = await post({ messages: [user("Hi")] });
 
-    expect(unreachable.status).toBe(502);
+    expect(unreachable.status).toBe(500);
     expect(await unreachable.json()).toEqual({ error: "The model provider could not be reached." });
-    expect(rejected.status).toBe(502);
+    expect(rejected.status).toBe(500);
     expect(await rejected.json()).toEqual({ error: "The model provider rejected the request." });
   });
 });

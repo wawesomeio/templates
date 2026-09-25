@@ -100,11 +100,11 @@ app.notFound((c) => refuse(c, 404, "This endpoint answers at its own address onl
 app.onError((err, c) => {
   if (err instanceof OpenAI.APIConnectionError) {
     console.error(`Could not reach ${baseURL()}. Is its host on this App's outbound allowlist? ${err.message}`);
-    return refuse(c, 502, "The model provider could not be reached.");
+    return refuse(c, 500, "The model provider could not be reached.");
   }
   console.error(messageOf(err));
   if (err instanceof OpenAI.RateLimitError) return refuse(c, 429, "Too many requests right now. Try again shortly.");
-  if (err instanceof OpenAI.APIError) return refuse(c, 502, "The model provider rejected the request.");
+  if (err instanceof OpenAI.APIError) return refuse(c, 500, "The model provider rejected the request.");
   return refuse(c, 500, "Something went wrong.");
 });
 
