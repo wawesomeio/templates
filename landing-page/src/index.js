@@ -1,4 +1,4 @@
-const site = {
+export const site = {
   name: "Fernwood Ceramics",
   tagline: "Hand-thrown stoneware, made to be used every day",
   intro:
@@ -91,7 +91,7 @@ function card(section) {
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 /** @param {string} value */
-function escapeHtml(value) {
+export function escapeHtml(value) {
   return value.replace(/[&<>"']/g, (character) => ESCAPES[character]);
 }
 

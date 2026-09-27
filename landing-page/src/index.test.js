@@ -1,19 +1,19 @@
 import { expect, it } from "vitest";
-import handler from "./index.js";
+import handler, { escapeHtml, site } from "./index.js";
 
 it("answers with the page", async () => {
   const response = await handler.fetch(new Request("https://studio.example/"));
 
   expect(response.status).toBe(200);
   expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
-  expect(await response.text()).toContain("<h1>Hand-thrown stoneware, made to be used every day</h1>");
+  expect(await response.text()).toContain(`<h1>${escapeHtml(site.tagline)}</h1>`);
 });
 
 it("answers the same page at any path", async () => {
   const response = await handler.fetch(new Request("https://studio.example/about"));
 
   expect(response.status).toBe(200);
-  expect(await response.text()).toContain("Fernwood Ceramics");
+  expect(await response.text()).toContain(escapeHtml(site.name));
 });
 
 it("refuses a POST", async () => {
